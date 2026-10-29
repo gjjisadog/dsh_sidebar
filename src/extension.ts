@@ -1,3 +1,4 @@
+import { Workbench, type SurfaceWorkbench, type PresentationMode } from './workbench.js'
 import { randomUUID } from 'node:crypto'
 import * as path from 'node:path'
 import * as vscode from 'vscode'
@@ -73,6 +74,7 @@ import { ExistingRuntimeConnectionError, existingRuntimeUrl, type RuntimeTarget 
 import { pickExistingRuntime, pickManagedRuntime } from './runtime-picker.js'
 
 let activeRuntime: DshRuntime | undefined
+let activeWorkbench: Workbench | undefined
 
 interface ReasoningEffortItem {
   id: string
@@ -317,6 +319,11 @@ export class DshChatController implements vscode.Disposable {
     }
   }
 
+  get archivedHistoryIds(): ReadonlySet<string> { return this.archivedSessionIds }
+
+  private resumeSelection: { id: string; verify: () => Promise<void> } | undefined
+  prepareResume(id: string, verify: () => Promise<void>): void { this.resumeSelection = { id, verify } }
+
   async start(target?: RuntimeTarget): Promise<void> {
     if (this.disposed) return
     ++this.runtimeSwitchRevision
@@ -369,7 +376,11 @@ export class DshChatController implements vscode.Disposable {
       this.publish({ canReconnect: true })
       await client.startStreams()
       if (generation !== this.generation || this.client !== client) return
-      await this.loadSessions()
+      if (this.resumeSelection) {
+        await this.resumeSelection.verify()
+        await this.loadSessions(this.resumeSelection.id, false, true)
+        this.resumeSelection = undefined
+      } else await this.loadSessions(this.workspaceState.get<string>('deepseekHarness.selectedSession'))
     } catch (error) {
       if (generation !== this.generation) return
       const message = error instanceof Error ? error.message : String(error)
@@ -863,7 +874,7 @@ export class DshChatController implements vscode.Disposable {
     this.settingsChanges.fire()
   }
 
-  private async loadSessions(preferredId?: string, allowCreate = true): Promise<void> {
+  private async loadSessions(preferredId?: string, allowCreate = true, strict = false): Promise<void> {
     const client = this.requireClient()
     const cwd = this.cwd
     const listGeneration = ++this.sessionListGeneration
@@ -885,6 +896,9 @@ export class DshChatController implements vscode.Disposable {
     if (selectionGeneration !== this.sessionLoadGeneration) {
       this.publishSessionItems()
       return
+    }
+    if (strict && !this.summaries.some(summary => summary.sessionId === preferredId && !this.archivedSessionIds.has(summary.sessionId))) {
+      throw new Error('The requested conversation is missing or archived. No replacement conversation was opened.')
     }
     const selectable = this.summaries.filter(summary => !this.archivedSessionIds.has(summary.sessionId))
     const preferredExists = preferredId === undefined
@@ -948,6 +962,7 @@ export class DshChatController implements vscode.Disposable {
   private async loadSession(sessionId: string): Promise<void> {
     const client = this.requireClient()
     const loadGeneration = ++this.sessionLoadGeneration
+    void this.workspaceState.update('deepseekHarness.selectedSession', sessionId).then(undefined, error => { this.output.appendLine(`[history] ${String(error)}`) })
     const sessionChanged = sessionId !== this._state.sessionId
     // Keep the last durable snapshot while reopening the same conversation.
     // A different conversation must never inherit that snapshot on failure.
@@ -1536,7 +1551,8 @@ type DraftImage = PromptImage & { id: string }
 
 class DshSurface implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[]
-  private readonly draftImagesBySession = new Map<string, DraftImage[]>()
+  private readonly draftImagesBySession: Map<string, DraftImage[]>
+  private disposed = false
   private ready = false
   private pendingFocus = false
   private pendingPrompt: string | undefined
@@ -1551,7 +1567,9 @@ class DshSurface implements vscode.Disposable {
     private readonly output: vscode.OutputChannel,
     private readonly editorContext: EditorContextBridge,
     extensionUri: vscode.Uri,
+    private readonly workbench?: SurfaceWorkbench,
   ) {
+    this.draftImagesBySession = workbench?.images ?? new Map()
     const mediaRoot = vscode.Uri.joinPath(extensionUri, 'media')
     const renderRoot = vscode.Uri.joinPath(extensionUri, 'dist', 'webview')
     webview.options = { enableScripts: true, localResourceRoots: [mediaRoot, renderRoot] }
@@ -1559,12 +1577,19 @@ class DshSurface implements vscode.Disposable {
       script: webview.asWebviewUri(vscode.Uri.joinPath(renderRoot, 'markdown.js')),
       style: webview.asWebviewUri(vscode.Uri.joinPath(renderRoot, 'katex.min.css')),
       scroll: webview.asWebviewUri(vscode.Uri.joinPath(renderRoot, 'scroll.js')),
-    })
+    }, vscode.env.language, workbench?.mode ?? 'sidebar')
     this.disposables = [
-      controller.onDidChangeState(state => { this.queueState(state) }),
+      controller.onDidChangeState(state => { if (!this.workbench || this.workbench.active()) this.queueState(state) }),
       editorContext.onDidChange(state => { void webview.postMessage({ type: 'ide-context', state }) }),
       webview.onDidReceiveMessage(message => { this.acceptMessage(message) }),
     ]
+  }
+
+  async refresh(): Promise<void> {
+    if (!this.workbench || this.workbench.active()) {
+      await this.resyncState()
+      await this.workbench?.restore(this.controller.state.sessionId, this.webview)
+    }
   }
 
   focusPrompt(): void {
@@ -1584,6 +1609,7 @@ class DshSurface implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.disposed = true
     if (this.stateTimer !== undefined) clearTimeout(this.stateTimer)
     for (const disposable of this.disposables) disposable.dispose()
   }
@@ -1743,6 +1769,7 @@ class DshSurface implements vscode.Disposable {
   }
 
   private async publishDraftImages(sessionId: string): Promise<void> {
+    await this.workbench?.saveImages(sessionId)
     await this.webview.postMessage({
       type: 'draft-images',
       sessionId,
@@ -1761,7 +1788,16 @@ class DshSurface implements vscode.Disposable {
   private acceptMessage(message: unknown): void {
     if (typeof message !== 'object' || message === null || !('type' in message)) return
     const value = message as Record<string, unknown>
+    if (this.disposed || (this.workbench && !this.workbench.active())) return
     const run = async (): Promise<void> => {
+      if (value.type === 'workbench-restore' && typeof value.sessionId === 'string') {
+        if (value.sessionId === this.controller.state.sessionId) await this.workbench?.restore(value.sessionId, this.webview)
+        return
+      }
+      if (await this.workbench?.handle(value, this.webview)) return
+      if (['send', 'attach-images', 'remove-attachment', 'attach'].includes(String(value.type))) {
+        await this.workbench?.authorize(this.controller.state.sessionId)
+      }
       switch (value.type) {
         case 'webview-error':
           this.output.appendLine(`[webview] ${typeof value.message === 'string' ? value.message : 'Unknown error'}`)
@@ -1769,6 +1805,7 @@ class DshSurface implements vscode.Disposable {
         case 'ready':
           this.ready = true
           await this.resyncState()
+          await this.workbench?.initialize(this.webview)
           await this.webview.postMessage({ type: 'ide-context', state: this.editorContext.viewState() })
           if (this.pendingFocus) {
             this.pendingFocus = false
@@ -1865,7 +1902,7 @@ class DshSurface implements vscode.Disposable {
               await this.restoreDraft(sessionId, requestId, value.text)
               return
             }
-            const draftImages = this.draftImagesFor(sessionId)
+            const draftImages = [...this.draftImagesFor(sessionId)]
             if (value.text.trim() === '/permission danger-full-access') {
               const confirmed = await vscode.window.showWarningMessage(
                 'Enable Full access?',
@@ -1911,14 +1948,20 @@ class DshSurface implements vscode.Disposable {
               await this.restoreDraft(sessionId, requestId, value.text)
               return
             }
+            if (this.workbench && !this.workbench.beginSend(sessionId)) { await this.restoreDraft(sessionId, requestId, value.text); return }
             try {
+              if (this.disposed || (this.workbench && !this.workbench.active())) { await this.workbench?.endSend(sessionId); return }
               await this.controller.send(value.text, draftImages, ideContext, mode)
             } catch (error) {
+              await this.workbench?.failed(sessionId, value.text)
+              await this.workbench?.endSend(sessionId)
               await this.restoreDraft(sessionId, requestId, value.text)
               throw error
             }
             await this.acknowledgeDraft(sessionId, requestId)
-            this.draftImagesBySession.delete(sessionId)
+            const submittedImages = new Set(draftImages.map(image => image.id))
+            this.draftImagesBySession.set(sessionId, this.draftImagesFor(sessionId).filter(image => !submittedImages.has(image.id)))
+            try { await this.workbench?.sent(sessionId, value.text) } finally { await this.workbench?.endSend(sessionId) }
             if (carriesIdeContext) this.editorContext.clearPinned()
             await this.publishDraftImages(sessionId)
           }
@@ -2144,12 +2187,14 @@ class DshViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private readonly output: vscode.OutputChannel,
     private readonly editorContext: EditorContextBridge,
     private readonly extensionUri: vscode.Uri,
+    private readonly workbench?: Workbench,
   ) {}
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.surface?.dispose()
-    const surface = new DshSurface(view.webview, this.controller, this.output, this.editorContext, this.extensionUri)
+    const surface = new DshSurface(view.webview, this.controller, this.output, this.editorContext, this.extensionUri, this.workbench?.surface('sidebar'))
     this.surface = surface
+    view.onDidChangeVisibility(() => { if (view.visible) void surface.refresh() })
     if (this.pendingFocus) {
       this.pendingFocus = false
       surface.focusPrompt()
@@ -2163,7 +2208,7 @@ class DshViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
       if (this.surface === surface) this.surface = undefined
     })
     const autoStart = vscode.workspace.getConfiguration('deepseekHarness').get<boolean>('autoStart', true)
-    if (autoStart) void this.controller.start()
+    if (autoStart && !this.workbench) void this.controller.start()
   }
 
   dispose(): void {
@@ -2260,8 +2305,10 @@ export function activate(context: vscode.ExtensionContext): void {
   const controller = new DshChatController(runtime, output, new DirtyFileGuard(), diffReviews, context.workspaceState, cwd)
   const pluginManager = new DshPluginManager(context, controller, output)
   const editorContext = new EditorContextBridge(() => controller.cwd)
-  const provider = new DshViewProvider(controller, output, editorContext, context.extensionUri)
-  const panels = new Set<{ panel: vscode.WebviewPanel; surface: DshSurface }>()
+  const workbench = new Workbench(context, controller, () => runtime.state.kind === 'ready' ? runtime.connection : undefined,
+    () => runtime.state.kind === 'ready' && runtime.state.ownership === 'managed')
+  activeWorkbench = workbench
+  const provider = new DshViewProvider(controller, output, editorContext, context.extensionUri, workbench)
 
   context.subscriptions.push(
     output,
@@ -2280,28 +2327,74 @@ export function activate(context: vscode.ExtensionContext): void {
     { webviewOptions: { retainContextWhenHidden: true } },
   ))
 
-  const openChat = async (): Promise<void> => {
-    await vscode.commands.executeCommand('workbench.view.extension.deepseekHarness')
-    provider.focusPrompt()
-  }
-
+  let clientPanel: vscode.WebviewPanel | undefined
+  let clientSurface: DshSurface | undefined
+  let switching = false
+  let shuttingDown = false
+  const changeMode = (mode: PresentationMode): Promise<void> => workbench.serialize(async () => {
+    switching = true
+    try {
+      await workbench.flush()
+      await context.workspaceState.update('deepseekHarness.presentationMode', mode)
+      if (mode === 'client') {
+        workbench.mode = 'client'
+        await vscode.commands.executeCommand('setContext', 'deepseekHarness.presentationMode', 'client')
+        if (!clientPanel) {
+          clientPanel = vscode.window.createWebviewPanel('deepseekHarness.editor', 'DSH 工作台', vscode.ViewColumn.Active,
+            { enableScripts: true, retainContextWhenHidden: true })
+          const panel = clientPanel
+          clientSurface = new DshSurface(panel.webview, controller, output, editorContext, context.extensionUri, workbench.surface('client'))
+          panel.onDidDispose(() => {
+            clientSurface?.dispose(); clientSurface = undefined; clientPanel = undefined
+            if (!switching && !shuttingDown) void changeMode('sidebar')
+          })
+        }
+        clientPanel.reveal()
+      } else {
+        clientPanel?.dispose(); clientPanel = undefined
+        workbench.mode = 'sidebar'
+        await vscode.commands.executeCommand('setContext', 'deepseekHarness.presentationMode', 'sidebar')
+        await vscode.commands.executeCommand('workbench.view.extension.deepseekHarness')
+        provider.focusPrompt()
+      }
+      if (controller.state.sessionId === '') await controller.start()
+    } catch (error) {
+      clientPanel?.dispose(); clientPanel = undefined; workbench.mode = 'sidebar'
+      await vscode.commands.executeCommand('setContext', 'deepseekHarness.presentationMode', 'sidebar')
+      throw error
+    } finally { switching = false }
+  })
+  workbench.bindSwitch(changeMode)
+  const openChat = (): Promise<void> => changeMode('sidebar')
   context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.openChat', openChat))
-
-  context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.openInEditor', async () => {
-    const panel = vscode.window.createWebviewPanel(
-      'deepseekHarness.editor',
-      'DeepSeek Harness',
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, retainContextWhenHidden: true },
-    )
-    const entry = { panel, surface: new DshSurface(panel.webview, controller, output, editorContext, context.extensionUri) }
-    panels.add(entry)
-    panel.onDidDispose(() => {
-      entry.surface.dispose()
-      panels.delete(entry)
-    })
-    await controller.start()
+  context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.openInEditor', () => changeMode('client')))
+  context.subscriptions.push({ dispose() { shuttingDown = true; clientSurface?.dispose(); clientPanel?.dispose() } })
+  context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('deepseekHarness.editor', {
+    async deserializeWebviewPanel(panel) { panel.dispose(); await changeMode('client') },
   }))
+  let cacheTimer: ReturnType<typeof setTimeout> | undefined
+  context.subscriptions.push(controller.onDidChangeState(() => {
+    if (cacheTimer) clearTimeout(cacheTimer)
+    cacheTimer = setTimeout(() => { void workbench.cacheActive().catch(error => output.appendLine(`[history] ${String(error)}`)) }, 1500)
+  }))
+  context.subscriptions.push({ dispose() { if (cacheTimer) clearTimeout(cacheTimer) } })
+  void workbench.initialize().then(async target => {
+    const mode = context.workspaceState.get<PresentationMode>('deepseekHarness.presentationMode', 'sidebar')
+    if (target) {
+      controller.prepareResume(target.sessionId, async () => {
+        if ((await workbench.sourceForConnection())?.id !== target.sourceId) throw new Error('The requested DSH source is not connected.')
+      })
+      await controller.start()
+      const source = await workbench.sourceForConnection()
+      const catalog = await workbench.catalog()
+      if (source?.id !== target.sourceId || !catalog.sessions.some(row => row.sessionId === target.sessionId && row.sourceId === target.sourceId && row.cwd === controller.cwd)) {
+        throw new Error('Cannot resume: the original source or conversation is unavailable.')
+      }
+      await controller.selectSession(target.sessionId)
+      await changeMode('client')
+    } else if (mode === 'client') await changeMode('client')
+    else if (vscode.workspace.getConfiguration('deepseekHarness').get<boolean>('autoStart', true)) await controller.start()
+  }).catch(error => { void vscode.window.showErrorMessage(String(error)) })
 
   context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.restart', async () => {
     await controller.restart().catch(error => { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)) })
@@ -2408,5 +2501,7 @@ export function activate(context: vscode.ExtensionContext): void {
 export async function deactivate(): Promise<void> {
   const runtime = activeRuntime
   activeRuntime = undefined
+  await activeWorkbench?.close()
+  activeWorkbench = undefined
   await runtime?.stop()
 }

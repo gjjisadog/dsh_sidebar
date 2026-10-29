@@ -1,3 +1,4 @@
+import { workbenchStyles, workbenchNavigation, workbenchScript } from './workbench-ui.js'
 import type * as vscode from 'vscode'
 
 function nonce(): string {
@@ -11,17 +12,18 @@ function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
-export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, markdownAssets: { script: vscode.Uri; style: vscode.Uri; scroll: vscode.Uri }): string {
+export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, markdownAssets: { script: vscode.Uri; style: vscode.Uri; scroll: vscode.Uri }, language = 'en', presentation: 'sidebar' | 'client' = 'sidebar'): string {
   const token = nonce()
   const mark = escapeHtml(deepseekMarkUri.toString(true))
   return `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(language)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; font-src ${webview.cspSource}; style-src ${webview.cspSource} 'nonce-${token}'; script-src 'nonce-${token}';">
   <link rel="stylesheet" href="${escapeHtml(markdownAssets.style.toString(true))}">
   <style nonce="${token}">
+    ${workbenchStyles}
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
@@ -279,8 +281,10 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
   </style>
 </head>
 <body>
-  <div id="app">
+  <div id="workbench">${presentation === 'client' ? workbenchNavigation : ''}<div id="app">
     <header class="toolbar">
+      <button id="workbenchMode" class="icon-button" title="${presentation === 'client' ? '切回侧栏' : '打开客户端'}" aria-label="切换显示模式">⇄</button>
+
       <button id="githubStar" class="icon-button github-star" title="Star dsh-vscode on GitHub" aria-label="Star dsh-vscode on GitHub"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.6-4.4 6.3-.9z"/></svg></button>
       <div id="sessionControl" class="session-control">
         <button id="sessionTrigger" class="session-trigger" aria-label="Project conversations" aria-haspopup="dialog" aria-expanded="false"><span id="sessionTriggerTitle" class="session-trigger-title">New conversation</span><span id="sessionAttentionCount" class="session-attention-count hidden"></span><svg viewBox="0 0 24 24"><path d="m7 9.5 5 5 5-5"/></svg></button>
@@ -295,6 +299,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       </div>
       <button id="newSession" class="icon-button" title="New conversation" aria-label="New conversation"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     </header>
+    <section id="workbenchPreview" class="hidden" aria-label="只读历史预览"></section>
     <div class="conversation-pane">
       <main id="scroll" class="scroll" tabindex="0" aria-label="Conversation"><div id="conversation" class="conversation"><div id="conversationStatus" class="conversation-slot"></div><div id="conversationHistory" class="conversation-slot"></div><div id="messages" class="messages"></div><div id="conversationTail" class="conversation-slot"></div></div></main>
       <button id="jumpLatest" class="jump-latest" type="button" aria-label="Jump to latest" aria-controls="scroll" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-5-5 5 5 5-5"/></svg>Jump to latest</button>
@@ -327,6 +332,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
         <div id="usageStats" class="usage-stats hidden"></div>
       </div>
     </footer>
+  </div>
   </div>
   <script nonce="${token}" src="${escapeHtml(markdownAssets.script.toString(true))}"></script>
   <script nonce="${token}" src="${escapeHtml(markdownAssets.scroll.toString(true))}"></script>
@@ -1471,7 +1477,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       if (renderedChrome.jobs !== current.jobs) renderJobs();
       renderConversation(current);
       const sessionReady = current.phase === 'ready' && Boolean(current.sessionId);
-      const enabled = sessionReady && current.routable !== false;
+      const enabled = sessionReady && current.routable !== false && elements.prompt.dataset?.workbenchLocked !== 'true';
       elements.prompt.disabled = !enabled; elements.attach.disabled = !enabled; elements.project.disabled = current.running === true; elements.newSession.disabled = current.phase !== 'ready'; elements.sessionTrigger.disabled = current.phase !== 'ready';
       elements.models.disabled = !sessionReady || !(current.models || []).length; elements.efforts.disabled = !enabled || !elements.efforts.options.length || elements.efforts.value === '';
       elements.cancel.classList.toggle('hidden', current.running !== true); elements.send.title = current.running ? 'Queue message (Enter) · Steer now (Cmd/Ctrl+Enter)' : 'Send (Enter)'; updateSend(); renderQueue();
@@ -1525,7 +1531,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
     function updateSend() {
       const pendingSend = state && [...pendingDraftSends.values()].some(draft => draft.sessionId === state.sessionId);
       const pendingAttachment = state && [...pendingAttachmentRequests.values()].some(request => request.sessionId === state.sessionId);
-      elements.send.disabled = !state || state.phase !== 'ready' || pendingSend || pendingAttachment || (elements.prompt.value.trim() === '' && draftImages.length === 0);
+      elements.send.disabled = elements.prompt.dataset?.workbenchPending === 'true' || elements.prompt.dataset?.workbenchLocked === 'true' || !state || state.phase !== 'ready' || pendingSend || pendingAttachment || (elements.prompt.value.trim() === '' && draftImages.length === 0);
     }
     function resizePrompt() { elements.prompt.style.height = 'auto'; elements.prompt.style.height = Math.min(elements.prompt.scrollHeight, 220) + 'px'; updateSend(); }
     function selectionFor(model, reasoningEffort) { return { provider: model.provider, model: model.model, ...(reasoningEffort ? { reasoningEffort } : {}) }; }
@@ -1711,6 +1717,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
         const cursor = elements.prompt.value.length; elements.prompt.setSelectionRange(cursor, cursor);
       }
     });
+    ${workbenchScript}
     vscode.postMessage({ type: 'ready' });
   </script>
 </body>

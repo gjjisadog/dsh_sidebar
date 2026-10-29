@@ -50,7 +50,8 @@
     "onCommand:deepseekHarness.startManagedRuntime",
     "onCommand:deepseekHarness.managePlugins",
     "onCommand:deepseekHarness.configureApiKey",
-    "onCommand:deepseekHarness.clearApiKey"
+    "onCommand:deepseekHarness.clearApiKey",
+    "onWebviewPanel:deepseekHarness.editor"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -73,7 +74,8 @@
         {
           "id": "deepseekHarness.chat",
           "name": "Chat",
-          "type": "webview"
+          "type": "webview",
+          "when": "deepseekHarness.presentationMode != client"
         }
       ]
     },
