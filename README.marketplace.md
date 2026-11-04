@@ -15,6 +15,7 @@ DSH Sidebar gives you a project-aware assistant in the VS Code right sidebar, wi
 
 ## ✨ What you can do
 
+- **Configure OpenCode Go with one key.** Enter your OpenCode API key and start with DeepSeek V4.1 Flash; the endpoint and model are configured automatically in this development build.
 - **Autonomous VS Code debugging.** Let DeepSeek launch the current project from `.vscode/launch.json`, manage breakpoints, step through execution, and inspect stack frames and local variables using VS Code's native debugger.
 - **Work with the official DSH runtime.** Sessions, streaming responses, tool calls, approvals, and follow-up questions stay inside VS Code.
 - **Bring in editor context.** The active file and selected code can travel with your prompt. Use `@file` or `@folder` to add more context.
@@ -36,10 +37,12 @@ You need VS Code 1.100 or newer and Node.js `^22.19` or `>=24`.
 
 1. Open a trusted project folder in VS Code.
 2. Select **DeepSeek** in the right sidebar. If it is hidden, find it under **Other Views**.
-3. Select the key button and enter your `DEEPSEEK_API_KEY`.
+3. Select the key button and enter your **OpenCode API key**. The default model is OpenCode Go's **DeepSeek V4.1 Flash**.
 4. Choose a Permission mode, Model, and Reasoning Effort, then send your first task.
 
 Use the Shield menu for Permission and Plan modes, `/` for official DSH commands, `@` for files and folders, and the plugins button to manage runtime extensions.
+
+OpenCode Go requires DeepSeek Harness **0.2.0-rc.2 or newer** and an active [Go or Go Plus subscription](https://opencode.ai/v2/docs/console/go/). Keys are stored securely in VS Code. The original DeepSeek key setup is available in the Command Palette as **DeepSeek Harness: Configure DeepSeek API Key**.
 
 ### Autonomous debugging
 

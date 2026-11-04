@@ -129,22 +129,30 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
     .markdown .katex-display { margin: 0; padding: 5px 2px; text-align: left; }
     .markdown .katex-display > .katex { text-align: left; }
     code { padding: 1px 4px; border-radius: 4px; font-family: var(--vscode-editor-font-family); background: var(--vscode-textCodeBlock-background); }
-    pre { max-width: 100%; margin: 7px 0; padding: 9px 10px; overflow: auto; white-space: pre; border-radius: 6px; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); font: 12px/1.55 var(--vscode-editor-font-family); }
+    pre { max-width: 100%; margin: 7px 0; padding: 9px 10px; overflow: auto; white-space: pre; border-radius: 6px; color: var(--vscode-editor-foreground); background: var(--vscode-textCodeBlock-background); font: 12px/1.55 var(--vscode-editor-font-family, ui-monospace), SFMono-Regular, Menlo, Consolas, monospace; }
     pre code { padding: 0; background: transparent; }
     a { color: var(--vscode-textLink-foreground); text-decoration: none; cursor: pointer; }
     a:hover { text-decoration: underline; }
     .file-link { min-width: 0; padding: 0; border: 0; color: var(--vscode-textLink-foreground); background: transparent; text-align: left; font-family: var(--vscode-editor-font-family); cursor: pointer; overflow-wrap: anywhere; }
     .file-link:hover { text-decoration: underline; }
     .code-link { padding: 1px 4px; border-radius: 4px; color: var(--vscode-textPreformat-foreground); background: var(--vscode-textCodeBlock-background); }
-    .tool { margin: 7px 0 10px; border: 1px solid var(--vscode-widget-border); border-radius: 8px; overflow: hidden; background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent); }
-    .tool.failed { border-color: var(--vscode-errorForeground); }
-    .tool summary { min-height: 35px; padding: 7px 9px; display: flex; align-items: center; gap: 7px; cursor: pointer; list-style: none; }
+    .tool { margin: 2px 0; min-width: 0; }
+    .tool summary { min-height: 28px; padding: 4px 3px; display: flex; align-items: center; gap: 7px; border-radius: 4px; cursor: pointer; list-style: none; font-size: 12px; }
+    .tool summary:hover { background: var(--vscode-toolbar-hoverBackground); }
+    .tool summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
     .tool summary::-webkit-details-marker { display: none; }
-    .tool-icon { width: 18px; color: var(--vscode-descriptionForeground); text-align: center; font-family: var(--vscode-editor-font-family); }
-    .tool-title { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
-    .tool-detail { color: var(--vscode-descriptionForeground); font-size: 11px; }
-    .tool-body { padding: 0 10px 9px 34px; min-width: 0; overflow: hidden; color: var(--vscode-descriptionForeground); }
-    .tool-body pre { color: var(--vscode-foreground); }
+    .tool-icon { width: 14px; flex: 0 0 auto; color: var(--vscode-descriptionForeground); text-align: center; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
+    .tool.failed > summary .tool-icon, .tool.failed > summary .tool-detail { color: var(--vscode-errorForeground); }
+    .tool.running > summary .tool-icon { color: var(--vscode-progressBar-background, #4d6bfe); }
+    .tool-kind { flex: 0 0 auto; font-weight: 600; }
+    .tool-title { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family, ui-monospace), SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; }
+    .tool-detail { flex: 0 0 auto; color: var(--vscode-descriptionForeground); font-size: 10px; }
+    .tool-body { margin: 1px 0 6px 9px; padding: 3px 0 4px 14px; min-width: 0; max-height: min(320px, 42vh); overflow: auto; border-left: 1px solid var(--vscode-widget-border); color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .tool-body .tool-body { margin: 0; padding: 0; max-height: none; overflow: visible; border: 0; }
+    .tool-body pre { width: max-content; min-width: 100%; max-width: none; margin: 4px 0; padding: 0; overflow: visible; border-radius: 0; background: transparent; color: var(--vscode-foreground); font-size: 11px; line-height: 18px; tab-size: 4; }
+    .tool-body .tool-command { color: var(--vscode-descriptionForeground); }
+    .tool-body .source-line { white-space: pre; overflow-wrap: normal; font-family: var(--vscode-editor-font-family, ui-monospace), SFMono-Regular, Menlo, Consolas, monospace; line-height: 18px; }
+    .tool-body .result-title { margin: 2px 0 5px; font-size: 11px; font-weight: 400; }
     .tool-output-more { margin: 5px 0 0; padding: 2px 7px; border: 1px solid var(--vscode-widget-border); border-radius: 5px; color: var(--vscode-textLink-foreground); background: transparent; font-size: 11px; }
     .tool-output-more:hover { background: var(--vscode-toolbar-hoverBackground); }
     .command-card { margin: 7px 0 10px; padding: 8px 10px; border: 1px solid var(--vscode-widget-border); border-radius: 8px; background: color-mix(in srgb, var(--vscode-editor-background) 72%, transparent); }
@@ -197,7 +205,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
     .option input { margin: 3px 0 0; }
     .option-description { display: block; color: var(--vscode-descriptionForeground); font-size: 11px; }
     .custom-answer { width: 100%; margin-top: 7px; padding: 6px 8px; border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)); outline: 0; border-radius: 4px; background: var(--vscode-input-background); }
-    .composer-wrap { width: 100%; min-width: 0; padding: 0 10px 10px; overflow: hidden; background: linear-gradient(transparent, var(--vscode-sideBar-background) 18px); }
+    .composer-wrap { width: 100%; min-width: 0; padding: 0 10px 10px; overflow: visible; background: linear-gradient(transparent, var(--vscode-sideBar-background) 18px); }
     .queue-dock { width: 100%; min-width: 0; max-width: 760px; margin: 0 auto 6px; padding: 7px 8px; border: 1px solid var(--vscode-widget-border); border-radius: 9px; background: var(--vscode-editor-background); }
     .queue-head { min-width: 0; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; }
     .queue-title { min-width: 0; flex: 1; font-weight: 600; }
@@ -224,6 +232,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
     .context-chips, .attachments { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px 0; }
     .context-chip, .attachment-chip { min-width: 0; max-width: 100%; display: flex; align-items: center; gap: 5px; padding: 3px 5px 3px 8px; border: 1px solid var(--vscode-widget-border); border-radius: 6px; color: var(--vscode-descriptionForeground); background: var(--vscode-editor-background); }
     .context-chip.selection { color: var(--vscode-foreground); border-color: color-mix(in srgb, #4d6bfe 55%, var(--vscode-widget-border)); }
+    .context-chip { max-width: min(100%, 240px); font-size: 12px; }
     .context-icon { flex: 0 0 auto; font-size: 12px; }
     .context-name, .attachment-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .context-remove, .attachment-remove { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; }
@@ -241,29 +250,37 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
     textarea::placeholder { color: var(--vscode-input-placeholderForeground); }
     .composer-row { width: 100%; min-width: 0; min-height: 39px; padding: 4px 6px 6px; display: grid; grid-template-columns: 28px 28px minmax(28px, .5fr) minmax(0, 1.2fr) minmax(46px, .55fr) auto; align-items: center; gap: 5px; }
     .run-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-    .usage-control { position: relative; flex: 0 0 auto; }
-    .usage-trigger { color: var(--vscode-descriptionForeground); }
-    .usage-trigger:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
-    .usage-track, .usage-fill { fill: none; stroke-width: 2; }
-    .usage-track { stroke: var(--vscode-widget-border); }
-    .usage-fill { stroke: var(--vscode-descriptionForeground); stroke-linecap: round; }
-    .usage-trigger.warning .usage-fill { stroke: var(--vscode-editorWarning-foreground); }
-    .usage-trigger.danger .usage-fill { stroke: var(--vscode-errorForeground); }
-    .usage-panel { position: absolute; z-index: 30; right: -36px; bottom: calc(100% + 8px); width: min(264px, calc(100vw - 34px)); padding: 12px; border: 1px solid var(--vscode-widget-border); border-radius: 10px; color: var(--vscode-descriptionForeground); background: var(--vscode-menu-background); box-shadow: 0 7px 22px var(--vscode-widget-shadow); font-size: 11px; line-height: 18px; }
-    .usage-header { display: flex; align-items: baseline; gap: 5px; }
-    .usage-percent, .usage-figures { color: var(--vscode-foreground); font-weight: 600; }
-    .usage-figures { margin-left: auto; font-variant-numeric: tabular-nums; }
-    .usage-bar { height: 4px; margin: 10px 0 8px; display: flex; gap: 1px; overflow: hidden; border-radius: 999px; background: var(--vscode-toolbar-hoverBackground); }
-    .usage-segment { min-width: 2px; height: 100%; border-radius: 1px; }
-    .usage-system { background: var(--vscode-descriptionForeground); }
-    .usage-tools { background: #a78bfa; }
-    .usage-messages { background: #4d6bfe; }
+    .usage-footer { position: relative; width: 100%; max-width: 760px; min-width: 0; min-height: 26px; margin: 4px auto 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--vscode-descriptionForeground); font-size: 11px; font-variant-numeric: tabular-nums; }
+    .usage-control { position: static; flex: 0 0 auto; }
+    .usage-trigger { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: inherit; font-size: 11px; white-space: nowrap; }
+    .usage-trigger:hover, .usage-trigger[aria-expanded="true"] { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
+    .usage-trigger:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+    .usage-percent { color: var(--vscode-foreground); font-weight: 500; }
+    .usage-track { width: 13px; height: 13px; flex: 0 0 auto; margin-right: 1px; }
+    .usage-ring-track, .usage-fill { fill: none; stroke-width: 2; }
+    .usage-ring-track { stroke: currentColor; opacity: .18; }
+    .usage-fill { stroke: currentColor; stroke-linecap: round; }
+    .usage-trigger.warning { color: var(--vscode-editorWarning-foreground, #cca700); }
+    .usage-trigger.danger { color: var(--vscode-errorForeground, #f48771); }
+    .usage-trigger.warning .usage-percent, .usage-trigger.danger .usage-percent { color: inherit; }
+    .usage-panel { position: absolute; z-index: 30; right: 0; bottom: calc(100% + 8px); width: min(288px, calc(100vw - 32px)); max-height: min(440px, 65vh); overflow: auto; padding: 16px; border: 1px solid var(--vscode-widget-border); border-radius: 10px; color: var(--vscode-descriptionForeground); background: var(--vscode-menu-background, var(--vscode-editor-background)); box-shadow: 0 8px 28px var(--vscode-widget-shadow); font-size: 11px; line-height: 18px; }
+    .usage-heading { color: var(--vscode-foreground); font-size: 12px; font-weight: 600; }
+    .usage-hero { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 8px; }
+    .usage-hero .usage-percent { font-size: 26px; line-height: 32px; font-weight: 500; letter-spacing: -.7px; }
+    .usage-capacity { margin-top: 1px; font-variant-numeric: tabular-nums; }
+    .usage-detail-track { height: 5px; margin: 12px 0 14px; overflow: hidden; border-radius: 999px; background: var(--vscode-toolbar-hoverBackground, #8883); }
+    .usage-detail-fill { display: block; height: 100%; border-radius: inherit; background: var(--vscode-foreground); opacity: .65; }
+    .usage-panel.warning .usage-detail-fill { background: var(--vscode-editorWarning-foreground, #cca700); }
+    .usage-panel.danger .usage-detail-fill { background: var(--vscode-errorForeground, #f48771); }
     .usage-rows { margin: 0; }
-    .usage-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 0; }
+    .usage-section { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--vscode-widget-border); }
+    .usage-section-title { margin-bottom: 6px; color: var(--vscode-foreground); font-size: 11px; font-weight: 600; }
+    .usage-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 3px 0; }
     .usage-row dt, .usage-row dd { margin: 0; }
-    .usage-row dd { color: var(--vscode-foreground); font-variant-numeric: tabular-nums; }
-    .usage-swatch { width: 7px; height: 7px; margin-right: 6px; display: inline-block; border-radius: 2px; }
-    .usage-stats { min-width: 0; padding: 0 12px 8px; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 14px; text-overflow: ellipsis; white-space: nowrap; }
+    .usage-row dd { color: var(--vscode-foreground); font-variant-numeric: tabular-nums; text-align: right; }
+    .usage-note { margin: 8px 0 0; opacity: .8; font-size: 10px; line-height: 1.5; }
+    .usage-stats { min-width: 0; padding-right: 4px; font-size: 11px; white-space: nowrap; }
+    .usage-stats::before { content: ''; display: inline-block; width: 1px; height: 10px; margin-right: 9px; vertical-align: -1px; background: currentColor; opacity: .2; }
     .project { width: 100%; min-width: 0; height: 28px; padding: 0 4px; overflow: hidden; display: flex; align-items: center; gap: 5px; border: 0; border-radius: 6px; color: var(--vscode-descriptionForeground); background: transparent; }
     .project:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
     .project span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -284,7 +301,6 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
   <div id="workbench">${presentation === 'client' ? workbenchNavigation : ''}<div id="app">
     <header class="toolbar">
       <button id="workbenchMode" class="icon-button" title="${presentation === 'client' ? '切回侧栏' : '打开客户端'}" aria-label="切换显示模式">⇄</button>
-
       <button id="githubStar" class="icon-button github-star" title="Star dsh-vscode on GitHub" aria-label="Star dsh-vscode on GitHub"><svg viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2-4.6-4.4 6.3-.9z"/></svg></button>
       <div id="sessionControl" class="session-control">
         <button id="sessionTrigger" class="session-trigger" aria-label="Project conversations" aria-haspopup="dialog" aria-expanded="false"><span id="sessionTriggerTitle" class="session-trigger-title">New conversation</span><span id="sessionAttentionCount" class="session-attention-count hidden"></span><svg viewBox="0 0 24 24"><path d="m7 9.5 5 5 5-5"/></svg></button>
@@ -321,13 +337,18 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
           <select id="models" class="model-select" aria-label="Model"></select>
           <select id="efforts" class="effort-select" aria-label="Reasoning effort"></select>
           <div class="run-actions">
-            <div id="usageControl" class="usage-control hidden">
-              <button id="usageTrigger" class="icon-button usage-trigger" title="Context usage" aria-label="Context usage" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 14 14"><circle class="usage-track" cx="7" cy="7" r="5.5"/><circle id="usageFill" class="usage-fill" cx="7" cy="7" r="5.5" transform="rotate(-90 7 7)"/></svg></button>
-              <div id="usagePanel" class="usage-panel hidden" role="dialog" aria-label="Context usage details"></div>
-            </div>
             <button id="cancel" class="icon-button cancel hidden" title="Stop" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1"/></svg></button>
             <button id="send" class="icon-button send" title="Send (Enter)" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/></svg></button>
           </div>
+        </div>
+      </div>
+      <div id="usageFooter" class="usage-footer hidden">
+        <div id="usageControl" class="usage-control hidden">
+          <button id="usageTrigger" class="usage-trigger" title="Context usage" aria-label="Context usage" aria-haspopup="dialog" aria-controls="usagePanel" aria-expanded="false">
+            <svg id="usageTrack" class="usage-track" viewBox="0 0 14 14" role="progressbar" aria-label="Context used" aria-valuemin="0" aria-valuemax="100"><circle class="usage-ring-track" cx="7" cy="7" r="5.5"/><circle id="usageFill" class="usage-fill" cx="7" cy="7" r="5.5" pathLength="100" transform="rotate(-90 7 7)"/></svg>
+            <span id="usageLabel">Context</span><span id="usagePercent" class="usage-percent">—</span>
+          </button>
+          <div id="usagePanel" class="usage-panel hidden" role="dialog" aria-label="Usage details"></div>
         </div>
         <div id="usageStats" class="usage-stats hidden"></div>
       </div>
@@ -338,6 +359,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
   <script nonce="${token}" src="${escapeHtml(markdownAssets.scroll.toString(true))}"></script>
   <script nonce="${token}">
     const vscode = acquireVsCodeApi();
+    const t = (en, zh) => document.documentElement.lang.toLowerCase().startsWith('zh') ? zh : en;
     window.addEventListener('error', event => {
       vscode.postMessage({ type: 'webview-error', message: event.message || 'Unknown webview error' });
     });
@@ -353,12 +375,37 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       models: document.getElementById('models'), efforts: document.getElementById('efforts'),
       policyTrigger: document.getElementById('policyTrigger'), policyMenu: document.getElementById('policyMenu'),
       send: document.getElementById('send'), cancel: document.getElementById('cancel'),
-      usageControl: document.getElementById('usageControl'), usageTrigger: document.getElementById('usageTrigger'), usageFill: document.getElementById('usageFill'), usagePanel: document.getElementById('usagePanel'), usageStats: document.getElementById('usageStats'),
+      usageFooter: document.getElementById('usageFooter'), usageLabel: document.getElementById('usageLabel'), usagePercent: document.getElementById('usagePercent'), usageTrack: document.getElementById('usageTrack'), usageControl: document.getElementById('usageControl'), usageTrigger: document.getElementById('usageTrigger'), usageFill: document.getElementById('usageFill'), usagePanel: document.getElementById('usagePanel'), usageStats: document.getElementById('usageStats'),
       attach: document.getElementById('attach'), attachments: document.getElementById('attachments'),
       queueDock: document.getElementById('queueDock'),
       modeChips: document.getElementById('modeChips'), contextChips: document.getElementById('contextChips'), mentionMenu: document.getElementById('mentionMenu'), commandMenu: document.getElementById('commandMenu'),
     };
     let state;
+    let promptSuggestion = '';
+    let promptSuggestionsEnabled = true;
+    let suggestionTurn = '';
+    let suggestionRequestId = 0;
+    let suggestionTimer;
+    function dismissPromptSuggestion() {
+      clearTimeout(suggestionTimer); suggestionTimer = undefined; suggestionRequestId++;
+      promptSuggestion = ''; elements.prompt.placeholder = 'Ask DeepSeek about this project';
+      elements.prompt.removeAttribute('aria-description');
+    }
+    function refreshPromptSuggestion() {
+      const last = array(state && state.messages).filter(message => message.role === 'user' || message.role === 'assistant').at(-1);
+      if (!promptSuggestionsEnabled || !state || state.phase !== 'ready' || !state.sessionId || state.running || state.routable === false || state.approval || state.question
+        || elements.prompt.value || draftImages.length || !last || last.role !== 'assistant' || last.streaming) { dismissPromptSuggestion(); return; }
+      const model = array(state.models).find(model => model.selected);
+      const turn = JSON.stringify([state.sessionId, last.id, last.deferredBodyRevision || last.text, model && model.provider, model && model.model]);
+      if (turn === suggestionTurn) return;
+      dismissPromptSuggestion(); suggestionTurn = turn;
+      const requestId = suggestionRequestId;
+      const sessionId = state.sessionId;
+      suggestionTimer = setTimeout(() => {
+        if (requestId !== suggestionRequestId || !state || state.sessionId !== sessionId || state.running || elements.prompt.value) return;
+        vscode.postMessage({ type: 'suggest-prompt', sessionId, requestId });
+      }, 500);
+    }
     let draftImages = [];
     const draftImagesBySession = new Map();
     let ideContext = { pinned: [] };
@@ -623,9 +670,11 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       if (card === 'terminal') {
         const cwd = string(callView && callView.cwd);
         if (cwd) body.append(node('div', 'result-title', cwd));
+        const command = string(callView && callView.title);
+        if (command) appendPre(body, '$ ' + command, 'tool-command');
         const output = resultView && typeof resultView.output === 'string' ? resultView.output : message.rawResult || string(callView && callView.title);
         appendPre(body, output);
-        if (resultView && (typeof resultView.exitCode === 'number' || resultView.signal)) body.append(node('div', '', resultView.signal ? 'Signal ' + resultView.signal : 'Exit ' + resultView.exitCode));
+        if (resultView && (typeof resultView.exitCode === 'number' && resultView.exitCode !== 0 || resultView.signal)) body.append(node('div', 'tool-exit', resultView.signal ? 'Signal ' + resultView.signal : 'Exit ' + resultView.exitCode));
       } else if (card === 'diff') {
         const paths = [];
         for (const diffValue of array(view.diffs)) {
@@ -767,26 +816,35 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       const callView = record(message.callView);
       const resultView = record(message.resultView);
       const item = document.createElement('details');
-      item.className = 'tool' + (message.failed ? ' failed' : '');
-      item.open = message.streaming === true || message.failed === true || expandedToolIds.has(message.id);
+      item.className = 'tool' + (message.failed ? ' failed' : message.streaming ? ' running' : '');
+      item.open = message.failed === true || expandedToolIds.has(message.id);
       const summary = document.createElement('summary');
       summary.append(node('span', 'tool-icon', message.streaming ? '●' : (message.failed ? '!' : '✓')));
-      summary.append(node('span', 'tool-title', toolTitle(message, callView, resultView)));
-      summary.append(node('span', 'tool-detail', message.detail || ''));
-      summary.addEventListener('click', () => { if (!item.open) conversationScroller.pause(); });
+      const terminal = (resultView || callView || {}).card === 'terminal';
+      if (terminal) summary.append(node('span', 'tool-kind', message.text === 'pwsh' ? 'PowerShell' : 'Bash'));
+      const title = node('span', 'tool-title', string(callView && callView.description) || toolTitle(message, callView, resultView));
+      title.title = toolTitle(message, callView, resultView); summary.append(title);
+      const detail = message.streaming ? t('Running', '运行中') : message.failed ? t('Failed', '失败') : message.detail === 'Completed' ? '' : message.detail || '';
+      if (detail) summary.append(node('span', 'tool-detail', detail));
+      summary.title = t('Click to expand or collapse output', '点击展开或收起输出');
+      summary.addEventListener('click', () => {
+        if (item.open) expandedToolIds.delete(message.id);
+        else { expandedToolIds.add(message.id); conversationScroller.pause(); }
+      });
       item.append(summary);
       let contentInitialized = false;
       const initializeContent = () => {
         if (contentInitialized) return;
         contentInitialized = true;
         if (message.deferredBody === true) {
-          const body = node('div', 'tool-body'); item.append(body); attachDeferredOutput(message, body, page => renderToolBody(page, record(page.callView), record(page.resultView)));
+          const body = node('div', 'tool-body');
+          if (terminal && callView && callView.title) appendPre(body, '$ ' + callView.title, 'tool-command');
+          item.append(body); attachDeferredOutput(message, body, page => renderToolBody(page, record(page.callView), record(page.resultView)));
         } else item.append(renderToolBody(message, callView, resultView));
       };
       if (item.open) initializeContent();
       item.addEventListener('toggle', () => {
-        if (item.open) { expandedToolIds.add(message.id); initializeContent(); }
-        else expandedToolIds.delete(message.id);
+        if (item.open) initializeContent();
       });
       return item;
     }
@@ -872,6 +930,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       return next.node;
     }
     function reconcileMessages(messages, current) {
+      messages = messages.filter(message => message.role !== 'tool' || message.text !== 'bash');
       if (!messages.length) {
         renderedMessages.clear(); elements.messages.replaceChildren(renderEmpty(current)); return;
       }
@@ -894,34 +953,35 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       const setup = current.setup;
       const box = node('div', 'status' + (setup ? ' setup' : (current.phase === 'error' ? ' error' : '')));
       if (setup === 'workspace') {
-        box.append(node('div', 'setup-title', 'Open a project to get started'), node('div', 'setup-detail', 'DeepSeek Harness works inside a trusted VS Code project folder.'));
+        box.append(node('div', 'setup-title', t('Open a project to get started', '打开项目后开始使用')), node('div', 'setup-detail', 'DeepSeek Harness works inside a trusted VS Code project folder.'));
       } else if (setup === 'dsh') {
-        box.append(node('div', 'setup-title', 'Install DeepSeek Harness'), node('div', 'setup-detail', current.statusText || 'The dsh executable was not found.'));
+        box.append(node('div', 'setup-title', t('Install DeepSeek Harness', '安装 DeepSeek Harness')), node('div', 'setup-detail', current.statusText || 'The dsh executable was not found.'));
       } else if (setup === 'api-key') {
-        box.append(node('div', 'setup-title', 'Configure your DeepSeek API key'), node('div', 'setup-detail', current.statusText || 'DeepSeek Harness needs an API key before it can run tasks.'));
+        box.append(node('div', 'setup-title', t('Configure an API key', '配置 API Key')), node('div', 'setup-detail', current.statusText || t('Enter your OpenCode API key to use DeepSeek V4.1 Flash with OpenCode Go.', '填入 OpenCode API Key，即可使用 Go 的 DeepSeek V4.1 Flash。')));
       } else if (setup === 'runtime-auth') {
-        box.append(node('div', 'setup-title', 'Connect to your running DSH'), node('div', 'setup-detail', current.statusText || 'An existing runtime needs its launch URL. Connect to it, or start a separate runtime managed by this extension.'));
+        box.append(node('div', 'setup-title', t('Connect to your running DSH', '连接正在运行的 DSH')), node('div', 'setup-detail', current.statusText || 'An existing runtime needs its launch URL. Connect to it, or start a separate runtime managed by this extension.'));
       } else {
-        box.append(document.createTextNode(current.statusText || 'Starting DeepSeek Harness…'));
+        box.append(document.createTextNode(current.statusText || t('Starting DeepSeek Harness…', '正在启动 DeepSeek Harness…')));
       }
       if (current.phase === 'error') {
         const actions = node('div', 'actions');
         if (setup === 'workspace') {
-          const open = node('button', 'primary', 'Open Project'); open.addEventListener('click', () => vscode.postMessage({ type: 'open-workspace' })); actions.append(open);
+          const open = node('button', 'primary', t('Open Project', '打开项目')); open.addEventListener('click', () => vscode.postMessage({ type: 'open-workspace' })); actions.append(open);
         } else if (setup === 'dsh') {
-          const install = node('button', 'primary', 'View Installation'); install.addEventListener('click', () => vscode.postMessage({ type: 'open-link', href: 'https://github.com/deepseek-ai/deepseek-harness' })); actions.append(install);
+          const install = node('button', 'primary', t('View Installation', '查看安装说明')); install.addEventListener('click', () => vscode.postMessage({ type: 'open-link', href: 'https://github.com/deepseek-ai/deepseek-harness' })); actions.append(install);
         } else if (setup === 'api-key') {
-          const configure = node('button', 'primary', 'Configure API Key'); configure.addEventListener('click', () => vscode.postMessage({ type: 'configure-api-key' })); actions.append(configure);
+          const configure = node('button', 'primary', t('Configure OpenCode Key', '配置 OpenCode Key')); configure.addEventListener('click', () => vscode.postMessage({ type: 'configure-api-key' })); actions.append(configure);
+          const deepseek = node('button', 'secondary', t('Configure DeepSeek Key', '配置 DeepSeek Key')); deepseek.addEventListener('click', () => vscode.postMessage({ type: 'configure-deepseek-api-key' })); actions.append(deepseek);
         } else if (setup === 'runtime-auth') {
-          const connect = node('button', 'primary', 'Connect Existing Runtime'); connect.addEventListener('click', () => vscode.postMessage({ type: 'connect-existing-runtime' })); actions.append(connect);
-          const managed = node('button', 'secondary', 'Start Managed Runtime'); managed.addEventListener('click', () => vscode.postMessage({ type: 'start-managed-runtime' })); actions.append(managed);
+          const connect = node('button', 'primary', t('Connect Existing Runtime', '连接已有运行时')); connect.addEventListener('click', () => vscode.postMessage({ type: 'connect-existing-runtime' })); actions.append(connect);
+          const managed = node('button', 'secondary', t('Start Managed Runtime', '启动托管运行时')); managed.addEventListener('click', () => vscode.postMessage({ type: 'start-managed-runtime' })); actions.append(managed);
         } else {
           if (current.canReconnect) {
-            const retry = node('button', 'secondary', 'Reconnect'); retry.addEventListener('click', () => vscode.postMessage({ type: 'reconnect' })); actions.append(retry);
+            const retry = node('button', 'secondary', t('Reconnect', '重新连接')); retry.addEventListener('click', () => vscode.postMessage({ type: 'reconnect' })); actions.append(retry);
           }
-          const restart = node('button', 'secondary', 'Restart Runtime'); restart.addEventListener('click', () => vscode.postMessage({ type: 'restart' })); actions.append(restart);
+          const restart = node('button', 'secondary', t('Restart Runtime', '重启运行时')); restart.addEventListener('click', () => vscode.postMessage({ type: 'restart' })); actions.append(restart);
         }
-        if (setup !== 'workspace') { const output = node('button', 'secondary', 'Show Output'); output.addEventListener('click', () => vscode.postMessage({ type: 'output' })); actions.append(output); }
+        if (setup !== 'workspace') { const output = node('button', 'secondary', t('Show Output', '查看输出')); output.addEventListener('click', () => vscode.postMessage({ type: 'output' })); actions.append(output); }
         box.append(actions);
       }
       return box;
@@ -1076,8 +1136,8 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
     function formatTokens(value) {
       if (!Number.isFinite(value)) return '0';
       if (value < 1000) return String(Math.round(value));
-      if (value < 1000000) return (value / 1000).toFixed(value < 10000 ? 1 : 0).replace(/\.0$/, '') + 'K';
-      return (value / 1000000).toFixed(value < 10000000 ? 1 : 0).replace(/\.0$/, '') + 'M';
+      if (value < 1000000) return (value / 1000).toFixed(value < 10000 ? 1 : 0).replace(/\\.0$/, '') + 'K';
+      return (value / 1000000).toFixed(value < 10000000 ? 1 : 0).replace(/\\.0$/, '') + 'M';
     }
     function formatDuration(value) {
       if (!Number.isFinite(value) || value <= 0) return '0ms';
@@ -1110,93 +1170,97 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       return groups.join('  |  ');
     }
     function usageStatsSummary(usage) {
-      const groups = [];
-      const stats = usage && usage.sessionStats;
-      if (stats && stats.steps > 0) {
-        groups.push(stats.turns + (stats.turns === 1 ? ' turn' : ' turns'));
-        groups.push(stats.steps + (stats.steps === 1 ? ' step' : ' steps'));
-      }
       const tokens = usage && usage.tokenUsage;
-      if (tokens) {
-        const total = tokens.uncachedInputTokens + tokens.cacheReadTokens + tokens.cacheWriteTokens + tokens.outputTokens;
-        if (total > 0) groups.push(formatTokens(total) + ' tokens');
-      }
-      return groups.join(' · ');
+      if (!tokens) return '';
+      const total = tokens.uncachedInputTokens + tokens.cacheReadTokens + tokens.cacheWriteTokens + tokens.outputTokens;
+      return total > 0 ? t('Total ', '累计 ') + formatTokens(total) + ' tokens' : '';
     }
     function renderUsage(current) {
       const usage = current.usage || { available: false, percent: 0, usedTokens: 0, contextWindow: 0 };
       const stats = usageStatsSummary(usage);
+      const available = usage.available === true;
       elements.usageStats.textContent = stats;
       elements.usageStats.title = usageStatsLine(usage);
       elements.usageStats.classList.toggle('hidden', stats === '');
-      elements.usageControl.classList.toggle('hidden', usage.available !== true);
-      if (usage.available !== true) {
-        usageOpen = false;
-        elements.usagePanel.classList.add('hidden');
-        elements.usageTrigger.setAttribute('aria-expanded', 'false');
-        return;
-      }
+      elements.usageFooter.classList.toggle('hidden', !available && !stats);
+      elements.usageControl.classList.toggle('hidden', !available && !stats);
+      if (!available && !stats) usageOpen = false;
       const percent = Math.max(0, Math.min(100, Number(usage.percent) || 0));
-      const circumference = 2 * Math.PI * 5.5;
-      elements.usageFill.setAttribute('stroke-dasharray', (circumference * percent / 100) + ' ' + circumference);
-      elements.usageTrigger.classList.toggle('warning', percent >= 75 && percent < 90);
-      elements.usageTrigger.classList.toggle('danger', percent >= 90);
-      elements.usageTrigger.title = 'Context ' + percent + '% used';
-      elements.usageTrigger.setAttribute('aria-label', elements.usageTrigger.title);
+      const percentLabel = !available ? '—' : percent === 0 && usage.usedTokens > 0 ? '<1%' : percent + '%';
+      elements.usageLabel.textContent = t('Context', '上下文');
+      elements.usagePercent.textContent = percentLabel;
+      const capacity = available ? '~' + formatTokens(usage.usedTokens) + ' / ' + formatTokens(usage.contextWindow) + ' tokens' : t('Capacity unavailable', '未提供容量');
+      elements.usageFill.setAttribute('stroke-dasharray', percent + ' 100');
+      elements.usageTrack.classList.toggle('hidden', !available);
+      elements.usageTrack.setAttribute('aria-label', t('Estimated context used', '估算上下文占用'));
+      if (available) {
+        elements.usageTrack.setAttribute('aria-valuenow', String(percent));
+        elements.usageTrack.setAttribute('aria-valuetext', percentLabel + ', ' + usage.usedTokens + ' / ' + usage.contextWindow + ' tokens');
+      } else {
+        elements.usageTrack.removeAttribute('aria-valuenow'); elements.usageTrack.removeAttribute('aria-valuetext');
+      }
+      elements.usageTrigger.classList.toggle('warning', available && percent >= 75 && percent < 90);
+      elements.usageTrigger.classList.toggle('danger', available && percent >= 90);
+      elements.usageTrigger.title = available ? t('Estimated context used: ', '估算上下文占用：') + percentLabel + ' · ' + usage.usedTokens.toLocaleString() + ' / ' + usage.contextWindow.toLocaleString() + ' tokens' : t('Context capacity unavailable', '运行时未提供上下文容量');
+      elements.usageTrigger.setAttribute('aria-label', elements.usageTrigger.title + t('. Click for details', '。点击查看详情'));
       elements.usageTrigger.setAttribute('aria-expanded', String(usageOpen));
+      elements.usagePanel.classList.toggle('warning', available && percent >= 75 && percent < 90);
+      elements.usagePanel.classList.toggle('danger', available && percent >= 90);
       elements.usagePanel.replaceChildren();
       if (usageOpen) {
-        const header = node('div', 'usage-header');
-        header.append(node('span', '', 'Context'), node('span', 'usage-percent', percent + '% used'), node('span', 'usage-figures', '~' + formatTokens(usage.usedTokens) + ' / ' + formatTokens(usage.contextWindow)));
-        const bar = node('div', 'usage-bar');
-        const breakdown = usage.breakdown;
-        const parts = breakdown ? [
-          { key: 'systemTokens', label: 'System prompt', className: 'usage-system' },
-          { key: 'toolsTokens', label: 'Tools', className: 'usage-tools' },
-          { key: 'messageTokens', label: 'Messages', className: 'usage-messages' },
-        ] : [];
-        const total = parts.reduce((sum, part) => sum + Number(breakdown[part.key] || 0), 0);
-        if (total > 0) {
-          for (const part of parts) {
-            const width = percent * Number(breakdown[part.key] || 0) / total;
-            if (width <= 0) continue;
-            const segment = node('span', 'usage-segment ' + part.className); segment.style.width = width + '%'; bar.append(segment);
-          }
-        } else {
-          const segment = node('span', 'usage-segment usage-messages'); segment.style.width = percent + '%'; bar.append(segment);
+        elements.usagePanel.append(node('div', 'usage-heading', t('Context window', '上下文窗口')));
+        const hero = node('div', 'usage-hero');
+        hero.append(node('span', 'usage-percent', percentLabel), node('span', '', available ? (100 - percent) + t('% remaining', '% 剩余') : t('Unavailable', '暂无数据')));
+        elements.usagePanel.append(hero, node('div', 'usage-capacity', capacity));
+        if (available) {
+          const track = node('div', 'usage-detail-track'); const fill = node('span', 'usage-detail-fill'); fill.style.width = percent + '%'; track.append(fill); elements.usagePanel.append(track);
         }
-        elements.usagePanel.append(header, bar);
-        if (breakdown) {
-          const rows = node('dl', 'usage-rows');
-          for (const part of parts) {
-            const row = node('div', 'usage-row');
-            const term = node('dt', ''); term.append(node('span', 'usage-swatch ' + part.className), document.createTextNode(part.label));
-            row.append(term, node('dd', '', '~' + formatTokens(breakdown[part.key]))); rows.append(row);
-          }
-          elements.usagePanel.append(rows);
+        const rows = node('dl', 'usage-rows');
+        const row = (label, value) => { const item = node('div', 'usage-row'); item.append(node('dt', '', label), node('dd', '', value)); rows.append(item); };
+        if (available) {
+          row(t('Estimated used', '估算已用'), '~' + formatTokens(usage.usedTokens));
+          row(t('Model limit', '模型上限'), formatTokens(usage.contextWindow));
+          row(t('Remaining', '剩余空间'), '~' + formatTokens(Math.max(0, usage.contextWindow - usage.usedTokens)));
+        } else row(t('Model limit', '模型上限'), t('Not provided by runtime', '运行时未提供'));
+        if (usage.breakdown) {
+          for (const [key, label] of [['systemTokens', t('System prompt', '系统提示词')], ['toolsTokens', t('Tool definitions', '工具定义')], ['messageTokens', t('Messages', '对话消息')]]) row(label, '~' + formatTokens(usage.breakdown[key]));
         }
+        elements.usagePanel.append(rows);
+        const tokens = usage.tokenUsage;
+        if (tokens) {
+          const section = node('div', 'usage-section');
+          section.append(node('div', 'usage-section-title', t('Session usage', '会话累计用量')), node('div', '', stats || t('Total: 0 tokens', '累计：0 tokens')));
+          section.append(node('div', '', t('Input ', '输入 ') + formatTokens(tokens.uncachedInputTokens + tokens.cacheReadTokens + tokens.cacheWriteTokens) + ' · ' + t('Output ', '输出 ') + formatTokens(tokens.outputTokens)));
+          elements.usagePanel.append(section);
+        }
+        if (usage.sessionStats) {
+          const stats = usage.sessionStats;
+          elements.usagePanel.append(node('p', 'usage-note', stats.turns + t(' turns · ', ' 轮对话 · ') + stats.steps + t(' model calls', ' 次模型调用')));
+        }
+        elements.usagePanel.append(node('p', 'usage-note', t('Context is an estimate for the next request. Session totals include repeated input and cache tokens; they are not context occupancy.', '上下文为下一次请求的占用估算。累计用量包含重复输入和缓存 Token，不等于上下文占用。')));
       }
       elements.usagePanel.classList.toggle('hidden', !usageOpen);
     }
     function sameSelection(left, right) {
       return left && right && left.path === right.path && left.startLine === right.startLine && left.endLine === right.endLine;
     }
-    function contextLabel(reference) {
-      if (reference.kind !== 'selection') return reference.path;
-      const lines = reference.startLine === reference.endLine ? 'L' + reference.startLine : 'L' + reference.startLine + '–' + reference.endLine;
-      return reference.path + ' ' + lines + (reference.truncated ? ' (truncated)' : '');
+    function contextLabel(reference, fullPath = false) {
+      const name = fullPath ? reference.path : reference.path.split(/[\\\\/]/).filter(Boolean).pop() || reference.path;
+      if (reference.kind !== 'selection') return name;
+      const lines = reference.startLine === reference.endLine ? reference.startLine : reference.startLine + '–' + reference.endLine;
+      return name + ':' + lines + (fullPath && reference.truncated ? ' (truncated)' : '');
     }
     function renderIdeContext() {
       elements.contextChips.replaceChildren();
       const pinned = ideContext.pinned || [];
       const references = [];
-      if (ideContext.activeFile) references.push(ideContext.activeFile);
       if (ideContext.selection && !pinned.some(item => sameSelection(item, ideContext.selection))) references.push(ideContext.selection);
       references.push(...pinned);
+      if (ideContext.activeFile && !references.some(item => item.path === ideContext.activeFile.path)) references.unshift(ideContext.activeFile);
       elements.contextChips.classList.toggle('hidden', references.length === 0);
       for (const reference of references) {
         const chip = node('div', 'context-chip' + (reference.kind === 'selection' ? ' selection' : ''));
-        chip.title = reference.kind === 'selection' ? 'Selected editor lines included with this prompt' : 'Current editor file included with this prompt';
+        chip.title = contextLabel(reference, true);
         chip.append(node('span', 'context-icon', reference.kind === 'selection' ? '§' : '▧'), node('span', 'context-name', contextLabel(reference)));
         if (reference.id) {
           const remove = node('button', 'context-remove', '×'); remove.title = 'Remove pinned context';
@@ -1492,6 +1556,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
         anchor.restore();
       }
       conversationScroller.changed();
+      refreshPromptSuggestion();
     }
     function scheduleRender(current) {
       state = current; pendingRenderState = current;
@@ -1539,6 +1604,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       const text = elements.prompt.value.trim(); if ((!text && !draftImages.length) || !state || state.phase !== 'ready') return;
       const sessionId = state.sessionId;
       if ([...pendingAttachmentRequests.values()].some(request => request.sessionId === sessionId)) return;
+      dismissPromptSuggestion();
       const requestId = ++draftSendRequestId;
       pendingDraftSends.set(requestId, { sessionId, text, scrollVersion: conversationScroller.intentVersion });
       vscode.postMessage({ type: 'send', sessionId, requestId, text, mode: mode || 'queue' }); elements.prompt.value = ''; sessionDrafts.set(sessionId, ''); commandIndex = 0; resetPrompt();
@@ -1568,11 +1634,12 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       if (itemFiles.length) return itemFiles;
       return Array.from(clipboard.files || []).filter(file => String(file.type || '').toLowerCase().startsWith('image/'));
     }
-    elements.prompt.addEventListener('input', () => { if (state && state.sessionId) sessionDrafts.set(state.sessionId, elements.prompt.value); policyMenuOpen = false; elements.policyMenu.classList.add('hidden'); elements.policyTrigger.setAttribute('aria-expanded', 'false'); commandIndex = 0; mentionIndex = 0; elements.prompt.placeholder = 'Ask DeepSeek about this project'; resizePrompt(); renderCommandMenu(); requestMentions(); });
+    elements.prompt.addEventListener('input', () => { dismissPromptSuggestion(); if (state && state.sessionId) sessionDrafts.set(state.sessionId, elements.prompt.value); policyMenuOpen = false; elements.policyMenu.classList.add('hidden'); elements.policyTrigger.setAttribute('aria-expanded', 'false'); commandIndex = 0; mentionIndex = 0; resizePrompt(); renderCommandMenu(); requestMentions(); });
     elements.prompt.addEventListener('click', () => { policyMenuOpen = false; elements.policyMenu.classList.add('hidden'); elements.policyTrigger.setAttribute('aria-expanded', 'false'); requestMentions(); });
     elements.prompt.addEventListener('paste', event => {
       const files = clipboardImageFiles(event);
       if (!files.length) return;
+      dismissPromptSuggestion();
       event.preventDefault();
       if (!state || state.phase !== 'ready' || !state.sessionId) return;
       const sessionId = state.sessionId;
@@ -1608,6 +1675,14 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       }
       if (menuOpen && event.key === 'Escape') { event.preventDefault(); elements.commandMenu.classList.add('hidden'); return; }
       if (menuOpen && (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && !event.isComposing))) { event.preventDefault(); pickCandidate(candidates[commandIndex]); return; }
+      if (promptSuggestion && !elements.prompt.value && !event.isComposing && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (event.key === 'Escape') { event.preventDefault(); dismissPromptSuggestion(); return; }
+        if (event.key === 'Tab') {
+          event.preventDefault(); const text = promptSuggestion; dismissPromptSuggestion();
+          elements.prompt.value = text; if (state && state.sessionId) sessionDrafts.set(state.sessionId, text);
+          elements.prompt.setSelectionRange(text.length, text.length); resizePrompt(); return;
+        }
+      }
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send(state && state.running && (event.metaKey || event.ctrlKey) ? 'steer' : 'queue'); }
     });
     elements.send.addEventListener('click', () => send('queue')); elements.cancel.addEventListener('click', () => vscode.postMessage({ type: 'cancel' })); elements.attach.addEventListener('click', () => vscode.postMessage({ type: 'attach' }));
@@ -1681,7 +1756,7 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
       }
       if (event.data.type === 'draft-images' && typeof event.data.sessionId === 'string') {
         const images = event.data.images || []; draftImagesBySession.set(event.data.sessionId, images);
-        if (state && event.data.sessionId === state.sessionId) { draftImages = images; renderAttachments(); }
+        if (state && event.data.sessionId === state.sessionId) { draftImages = images; if (images.length) dismissPromptSuggestion(); renderAttachments(); }
       }
       if (event.data.type === 'attachments-added' && typeof event.data.requestId === 'number') {
         const pending = pendingAttachmentRequests.get(event.data.requestId);
@@ -1711,8 +1786,21 @@ export function chatHtml(webview: vscode.Webview, deepseekMarkUri: vscode.Uri, m
         const mention = currentMentionQuery();
         if (mention && mention.query === event.data.query) { mentionCandidates = event.data.candidates || []; mentionIndex = 0; renderMentionMenu(); }
       }
+      if (event.data.type === 'suggestion-setting') {
+        promptSuggestionsEnabled = event.data.enabled === true;
+        if (!promptSuggestionsEnabled) dismissPromptSuggestion();
+        else { suggestionTurn = ''; refreshPromptSuggestion(); }
+      }
+      if (event.data.type === 'prompt-suggestion' && promptSuggestionsEnabled && event.data.requestId === suggestionRequestId
+        && state && event.data.sessionId === state.sessionId && !state.running && !elements.prompt.value && !elements.prompt.disabled
+        && typeof event.data.text === 'string' && event.data.text.trim() && event.data.text.length <= 200 && !/[\\r\\n\\x00-\\x1f\\x7f]/.test(event.data.text)) {
+        promptSuggestion = event.data.text;
+        elements.prompt.placeholder = promptSuggestion + t('  · Tab to accept', '  · Tab 接受');
+        elements.prompt.setAttribute('aria-description', t('Suggested message: ', '建议消息：') + promptSuggestion + t('. Press Tab to accept, Escape to dismiss.', '。按 Tab 填入，按 Esc 忽略。'));
+      }
       if (event.data.type === 'focus-prompt') elements.prompt.focus();
       if (event.data.type === 'set-prompt' && typeof event.data.text === 'string') {
+        dismissPromptSuggestion();
         elements.prompt.value = event.data.text; if (state && state.sessionId) sessionDrafts.set(state.sessionId, event.data.text); resizePrompt(); requestMentions(); renderCommandMenu(); elements.prompt.focus();
         const cursor = elements.prompt.value.length; elements.prompt.setSelectionRange(cursor, cursor);
       }

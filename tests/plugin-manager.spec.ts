@@ -5,7 +5,7 @@ import { PassThrough } from 'node:stream'
 const mocks = vi.hoisted(() => ({
   pick: vi.fn(), warning: vi.fn(), info: vi.fn(), input: vi.fn(), progress: vi.fn(), installed: vi.fn(), spawn: vi.fn(), namespace: vi.fn(),
 }))
-vi.mock('vscode', () => ({
+vi.mock('vscode', () => ({ env: { language: 'en' },
   QuickPickItemKind: { Separator: -1 }, ProgressLocation: { Notification: 15 },
   window: { showQuickPick: mocks.pick, showWarningMessage: mocks.warning, showInformationMessage: mocks.info, showInputBox: mocks.input, withProgress: mocks.progress },
   workspace: { getWorkspaceFolder: () => undefined, getConfiguration: () => ({ get: () => '' }) },

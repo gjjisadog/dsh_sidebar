@@ -13,6 +13,8 @@ describe('setup state', () => {
 
   it('recognizes credential errors without overriding healthy states', () => {
     expect(setupKindFor('/workspace', 'error', 'DEEPSEEK_API_KEY is required')).toBe('api-key')
+    expect(setupKindFor('/workspace', 'error', 'OPENCODE_API_KEY is required')).toBe('api-key')
+    expect(setupKindFor('/workspace', 'error', 'MISSING_CREDENTIAL for opencode-go')).toBe('api-key')
     expect(setupKindFor('/workspace', 'ready', 'API key is required')).toBeNull()
   })
 

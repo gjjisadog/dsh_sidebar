@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import * as vscode from 'vscode'
-import { DEEPSEEK_API_KEY_SECRET } from './credentials.js'
+import { DEEPSEEK_API_KEY_SECRET, OPENCODE_API_KEY_SECRET } from './credentials.js'
 import { findSourceRoot, parseDshWebUrl, resolveLaunch, type LaunchCommand, webArgsForDshVersion } from './launch.js'
 import {
   DEFAULT_DSH_SERVER_URL,
@@ -100,6 +100,14 @@ export class DshRuntime implements vscode.Disposable {
   private launchPreparation: RuntimeLaunchPreparation | undefined
   private launchPreparationRelease: Promise<void> | undefined
   private _state: RuntimeState = { kind: 'stopped' }
+  private detectedVersion: string | undefined
+  get diagnostics(): { version: string; ownership: string; openCodeKey: boolean; deepSeekKey: boolean | undefined } {
+    return { version: this._state.kind === 'ready' && this._state.ownership === 'managed' ? this.detectedVersion ?? 'unknown' : 'unknown',
+      ownership: this._state.kind === 'ready' ? this._state.ownership : this._state.kind,
+      openCodeKey: Boolean(this.appliedCredentials.get(OPENCODE_API_KEY_SECRET)),
+      deepSeekKey: this.appliedCredentials.get(DEEPSEEK_API_KEY_SECRET) ? true : undefined }
+  }
+  private readonly appliedCredentials = new Map<string, string | undefined>()
 
   readonly onDidChangeState = this.changes.event
 
@@ -111,6 +119,10 @@ export class DshRuntime implements vscode.Disposable {
 
   get state(): RuntimeState {
     return this._state
+  }
+
+  credentialApplied(name: string, value: string | undefined): boolean {
+    return this.appliedCredentials.has(name) && this.appliedCredentials.get(name) === value
   }
 
   get connection(): DshConnection {
@@ -228,6 +240,7 @@ export class DshRuntime implements vscode.Disposable {
       })
       version = await readDshVersion(versionLaunch, workspace.fsPath)
       if (this.pending !== pending) return pending.promise
+      this.detectedVersion = version
       assertSupportedDshVersion(version)
       const versionedArgs = webArgsForDshVersion(configuredArgs, version)
       const args = applyRuntimeLaunchPreparation(versionedArgs, version, launchPreparation)
@@ -271,12 +284,15 @@ export class DshRuntime implements vscode.Disposable {
       return pending.promise
     }
     this.child = child
+    this.appliedCredentials.set(DEEPSEEK_API_KEY_SECRET, storedApiKey)
+    this.appliedCredentials.set(OPENCODE_API_KEY_SECRET, this.launchPreparation?.environment?.OPENCODE_API_KEY)
 
     const consume = (line: string): void => {
       if (this.child === child) this.acceptOutputLine(line, pending)
     }
-    const stdout = new RuntimeOutput(line => { this.output.appendLine(line) }, consume)
-    const stderr = new RuntimeOutput(line => { this.output.appendLine(line) }, consume)
+    const secrets = [storedApiKey ?? '', ...Object.values(this.launchPreparation?.environment ?? {})]
+    const stdout = new RuntimeOutput(line => { this.output.appendLine(line) }, consume, undefined, secrets)
+    const stderr = new RuntimeOutput(line => { this.output.appendLine(line) }, consume, undefined, secrets)
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
     child.stdout.on('data', (chunk: string) => { stdout.consume(chunk) })

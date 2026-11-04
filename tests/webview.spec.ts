@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { JSDOM } from 'jsdom'
 import type * as vscode from 'vscode'
 import { chatHtml as createChatHtml } from '../src/webview.js'
 
@@ -11,6 +12,43 @@ function chatHtml(webview: vscode.Webview, mark: vscode.Uri): string {
 }
 
 describe('chat webview', () => {
+  it('renders compact context labels, hides the duplicate active file, and retains full paths and pinned removal', () => {
+    const html = chatHtml({ cspSource: 'test:' } as vscode.Webview, { toString: () => 'mark' } as vscode.Uri)
+    const dom = new JSDOM(html)
+    try {
+      const document = dom.window.document
+      const contextChips = document.getElementById('contextChips')!
+      const node = (tag: string, className: string, text = '') => {
+        const element = document.createElement(tag); element.className = className; element.textContent = text; return element
+      }
+      const sent: unknown[] = []
+      const source = html.slice(html.indexOf('function sameSelection('), html.indexOf('function currentMentionQuery('))
+      const render = new Function('ideContext', 'elements', 'node', 'vscode', source + '; renderIdeContext();')
+      const draw = (context: unknown) => render(context, { contextChips }, node, { postMessage: (message: unknown) => sent.push(message) })
+      const path = 'project/hybrid30k/modules/cpu1/ctrl/ctrl.c'
+      const activeFile = { kind: 'file', path }
+      const selection = { kind: 'selection', path, startLine: 606, endLine: 623, truncated: true }
+      draw({ activeFile, pinned: [] })
+      expect(contextChips.querySelector('.context-name')!.textContent).toBe('ctrl.c')
+      expect(contextChips.firstElementChild!.getAttribute('title')).toBe(path)
+      draw({ activeFile, selection, pinned: [] })
+      expect(contextChips.children).toHaveLength(1)
+      expect(contextChips.querySelector('.context-name')!.textContent).toBe('ctrl.c:606–623')
+      expect(contextChips.firstElementChild!.getAttribute('title')).toBe(path + ':606–623 (truncated)')
+      draw({ activeFile, selection, pinned: [{ ...selection, id: 'pinned' }] })
+      expect(contextChips.children).toHaveLength(1)
+      ;(contextChips.querySelector('button') as HTMLButtonElement).click()
+      expect(sent).toEqual([{ type: 'remove-context', id: 'pinned' }])
+      draw({ activeFile, selection: { ...selection, path: 'other/ctrl.c', endLine: 606 }, pinned: [] })
+      expect([...contextChips.querySelectorAll('.context-name')].map(item => item.textContent)).toEqual(['ctrl.c', 'ctrl.c:606'])
+      expect([...contextChips.children].map(item => item.getAttribute('title'))).toEqual([path, 'other/ctrl.c:606 (truncated)'])
+      draw({ activeFile: { kind: 'file', path: 'C:\\project\\ctrl.c' }, pinned: [] })
+      expect(contextChips.querySelector('.context-name')!.textContent).toBe('ctrl.c')
+      draw({ pinned: [] })
+      expect(contextChips.classList.contains('hidden')).toBe(true)
+    } finally { dom.window.close() }
+  })
+
   it('keeps model selection enabled when the current model is unroutable, but blocks sending', () => {
     const html = chatHtml({ cspSource: 'vscode-webview:' } as vscode.Webview, { toString: () => 'mark' } as vscode.Uri)
     const source = html.slice(html.indexOf('const sessionReady ='), html.indexOf('elements.cancel.classList.toggle'))
@@ -45,8 +83,8 @@ describe('chat webview', () => {
 
   it('offers separate reconnect and explicit runtime restart actions', () => {
     const html = chatHtml({ cspSource: 'vscode-webview:' } as vscode.Webview, { toString: () => 'mark' } as vscode.Uri)
-    expect(html).toContain("'Reconnect'); retry.addEventListener('click', () => vscode.postMessage({ type: 'reconnect' }))")
-    expect(html).toContain("'Restart Runtime'); restart.addEventListener('click', () => vscode.postMessage({ type: 'restart' }))")
+    expect(html).toContain("t('Reconnect', '重新连接')); retry.addEventListener('click', () => vscode.postMessage({ type: 'reconnect' }))")
+    expect(html).toContain("t('Restart Runtime', '重启运行时')); restart.addEventListener('click', () => vscode.postMessage({ type: 'restart' }))")
     expect(html).toContain('if (current.canReconnect)')
   })
 
@@ -221,8 +259,57 @@ describe('chat webview', () => {
       (parent: ReturnType<typeof node>, text: string) => { if (text) parent.append(node('pre', '', text)) },
       () => {},
     )
-    const body = render({ rawResult: '\n[exit code: 2]' }, { card: 'terminal', title: 'run' }, { card: 'terminal', output: '', exitCode: 2 })
+    const body = render({ rawResult: '\n[exit code: 2]' }, { card: 'terminal' }, { card: 'terminal', output: '', exitCode: 2 })
     expect(body.children).toEqual([{ text: 'Exit 2', children: [], append: expect.any(Function) }])
+  })
+
+  it('keeps tools compact until explicitly expanded, preserves that choice, and opens failures without pinning them', async () => {
+    const html = chatHtml({ cspSource: 'test:' } as vscode.Webview, { toString: () => 'mark' } as vscode.Uri)
+    const dom = new JSDOM(html)
+    try {
+      const document = dom.window.document
+      const expanded = new Set<string>()
+      let bodies = 0
+      let loads = 0
+      const node = (tag: string, className = '', text = '') => {
+        const element = document.createElement(tag); element.className = className; element.textContent = text; return element
+      }
+      const source = html.slice(html.indexOf('function renderTool(message)'), html.indexOf('function renderCommand(message)'))
+      const render = new Function('document', 'node', 'record', 'string', 't', 'toolTitle', 'expandedToolIds', 'conversationScroller', 'renderToolBody', 'appendPre', 'attachDeferredOutput', source + '; return renderTool;')(
+        document, node, (value: unknown) => value, (value: unknown) => typeof value === 'string' ? value : '', (english: string) => english,
+        (_message: unknown, call: { title: string }) => call.title, expanded, { pause() {} }, () => { bodies++; return node('div', 'tool-body', 'output') },
+        (parent: HTMLElement, text: string, className: string) => parent.append(node('pre', className, text)), () => { loads++ },
+      )
+      const running = { id: 'tool:one', text: 'bash', streaming: true, detail: 'Running…', callView: { card: 'terminal', title: 'cd /workspace && ls', description: 'List project files' } }
+      const initial = render(running) as HTMLDetailsElement
+      expect(initial.open).toBe(false)
+      expect(bodies).toBe(0)
+      expect(initial.querySelector('.tool-kind')!.textContent).toBe('Bash')
+      expect(initial.querySelector('.tool-title')!.textContent).toBe('List project files')
+      expect(initial.querySelector('.tool-title')!.getAttribute('title')).toBe('cd /workspace && ls')
+      initial.querySelector('summary')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(initial.open).toBe(true)
+      expect(bodies).toBe(1)
+      const completed = { ...running, streaming: false, detail: 'Completed' }
+      const next = render(completed) as HTMLDetailsElement
+      expect(next.open).toBe(true)
+      expect(next.querySelector('.tool-detail')).toBeNull()
+      next.querySelector('summary')!.click()
+      expect((render(completed) as HTMLDetailsElement).open).toBe(false)
+      const deferred = render({ ...completed, deferredBody: true }) as HTMLDetailsElement
+      expect(loads).toBe(0)
+      deferred.querySelector('summary')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(loads).toBe(1)
+      expect(deferred.querySelector('.tool-command')!.textContent).toBe('$ cd /workspace && ls')
+      deferred.querySelector('summary')!.click()
+      const failed = render({ ...completed, failed: true }) as HTMLDetailsElement
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(failed.open).toBe(true)
+      expect(expanded.size).toBe(0)
+      expect((render(completed) as HTMLDetailsElement).open).toBe(false)
+    } finally { dom.window.close() }
   })
 
   it('detaches tail following before loading earlier history', () => {

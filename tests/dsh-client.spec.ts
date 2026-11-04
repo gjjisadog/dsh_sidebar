@@ -67,6 +67,26 @@ function harness(autoSnapshot = true, initialJobs: Record<string, unknown[]> = {
 }
 
 describe('DSH Remote chat transport', () => {
+  it('repairs an unavailable persisted Go model and saves a usable default', async () => {
+    const h = harness()
+    h.results['session/modelCatalog'] = { ...h.results['session/modelCatalog'] as object,
+      default: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' } }
+    h.results['session/selectModel'] = { selected: { provider: 'p', model: 'm' } }
+    expect(await h.client.recoverOpenCodeModel('s')).toMatchObject({ current: { provider: 'p', model: 'm' }, routable: true })
+    expect(h.requests).toContainEqual({ endpoint: 'session/selectModel', args: { request: { sessionId: 's', provider: 'p', model: 'm' } } })
+  })
+
+  it('does not replace a valid Go model or invent a fallback when no provider exists', async () => {
+    const h = harness()
+    h.results['session/modelCatalog'] = { default: { provider: 'opencode-go', model: 'm' }, routableProviders: ['opencode-go'],
+      groups: [{ id: 'opencode-go', models: [{ id: 'm' }] }], failures: [] }
+    expect((await h.client.recoverOpenCodeModel('s')).routable).toBe(true)
+    expect(h.requests.some(r => r.endpoint === 'session/selectModel')).toBe(false)
+    const empty = harness()
+    empty.results['session/modelCatalog'] = { default: { provider: 'opencode-go', model: 'm' }, routableProviders: [], groups: [], failures: [] }
+    expect((await empty.client.recoverOpenCodeModel('s')).routable).toBe(false)
+    expect(empty.requests.some(r => r.endpoint === 'session/selectModel')).toBe(false)
+  })
   it.each([false, true])('only accepts HTTP 404 catalog fallback after a confirmed legacy baseline (modern=%s)', async modern => {
     const h = harness(true, {}, modern)
     await h.client.startStreams()

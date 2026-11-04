@@ -20,6 +20,7 @@ function compactToolView(value: unknown): unknown {
   const compact: Record<string, unknown> = {}
   if (typeof source.card === 'string') compact.card = source.card
   if (typeof source.title === 'string') compact.title = source.title
+  if (typeof source.description === 'string') compact.description = source.description
   return Object.keys(compact).length === 0 ? undefined : compact
 }
 

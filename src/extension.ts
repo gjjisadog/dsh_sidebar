@@ -1,4 +1,6 @@
 import { Workbench, type SurfaceWorkbench, type PresentationMode } from './workbench.js'
+import { registerClientLauncher } from './client-launcher.js'
+import { ConnectionHealth, type ServiceHealth } from './connection-health.js'
 import { randomUUID } from 'node:crypto'
 import * as path from 'node:path'
 import * as vscode from 'vscode'
@@ -19,9 +21,11 @@ import {
   type PermissionPresetItem,
   type PlanModeState,
 } from './collaboration-state.js'
-import { configureApiKey, clearApiKey, watchDebugConfiguration } from './runtime-configuration.js'
+import { configureApiKey, clearApiKey, watchDebugConfiguration, watchCredentialChanges } from './runtime-configuration.js'
 import { DiffReviewManager, type ChangedFileGroup } from './diff-review.js'
 import { DebugRuntimeContribution } from './debug-runtime-contribution.js'
+import { OpenCodeRuntimeContribution } from './opencode-runtime.js'
+import { PromptSuggestionsRuntimeContribution } from './prompt-suggestions-runtime.js'
 import { DebugSessionManager } from './debug-session-manager.js'
 import { DirtyFileGuard } from './dirty-file-guard.js'
 import { EditorContextBridge } from './editor-context-bridge.js'
@@ -128,7 +132,14 @@ interface WorkspacePick extends vscode.QuickPickItem {
   uri?: vscode.Uri
 }
 
+interface ConnectionDiagnostics {
+  provider: string; model: string; version: string; ownership: string
+  credential: 'saved' | 'missing' | 'unknown'; health: ServiceHealth; recovered: boolean
+}
+
 interface ChatViewState {
+  diagnostics?: ConnectionDiagnostics
+  credentialPending: boolean
   phase: 'loading' | 'ready' | 'error'
   statusText: string
   setup: SetupKind
@@ -189,6 +200,7 @@ function stateUpdateForWebview(update: ChatViewStateUpdate): ChatViewStateUpdate
 
 function initialState(cwd: string): ChatViewState {
   return {
+    credentialPending: false,
     phase: cwd === '' ? 'error' : 'loading',
     statusText: cwd === '' ? 'Open a project folder to start using DeepSeek Harness.' : 'Starting the official DeepSeek Harness runtime…',
     setup: setupKindFor(cwd, cwd === '' ? 'error' : 'loading', ''),
@@ -219,6 +231,24 @@ function initialState(cwd: string): ChatViewState {
 }
 
 export class DshChatController implements vscode.Disposable {
+  private promptSuggestion: { client: DshClient; key: string; result: Promise<string> } | undefined
+  async suggestNextPrompt(sessionId: string): Promise<string> {
+    const state = this._state
+    if (state.sessionId !== sessionId || state.phase !== 'ready' || state.running || !state.routable || !this.client
+      || !vscode.workspace.getConfiguration('deepseekHarness', vscode.Uri.file(this.cwd)).get('promptSuggestions', true)) return ''
+    const selected = state.models.find(model => model.selected)
+    const messages = state.messages.filter(message => (message.role === 'user' || message.role === 'assistant') && !message.streaming)
+      .slice(-6).map(message => ({ role: message.role, text: message.text.slice(-3000) }))
+    if (!selected || messages.length < 2 || messages.at(-1)?.role !== 'assistant') return ''
+    const client = this.client
+    const request = { sessionId, provider: selected.provider, model: selected.model, messages }
+    const key = JSON.stringify(request)
+    if (this.promptSuggestion?.client !== client || this.promptSuggestion.key !== key) {
+      this.promptSuggestion = { client, key, result: client.suggestNextPrompt(request).catch(() => '') }
+    }
+    const text = await this.promptSuggestion.result
+    return client === this.client && vscode.workspace.getConfiguration('deepseekHarness', vscode.Uri.file(this.cwd)).get('promptSuggestions', true) ? text : ''
+  }
   private readonly changes = new vscode.EventEmitter<ChatViewState>()
   private readonly settingsChanges = new vscode.EventEmitter<void>()
   private readonly projector = new ConversationProjector()
@@ -246,6 +276,8 @@ export class DshChatController implements vscode.Disposable {
   private readonly unreadSessionIds: Set<string>
   private readonly sessionAttention = new Map<string, SessionAttention>()
   private readonly reconnectSessions = new Set<string>()
+  private readonly connectionHealth = new ConnectionHealth()
+  private recoveredModel = false
   private automaticReconnects: number[] = []
   private recovery: { abort: AbortController; task: Promise<void>; failure: Error | undefined } | undefined
 
@@ -294,12 +326,20 @@ export class DshChatController implements vscode.Disposable {
     return this.runtime.state.kind === 'ready' ? this.runtime.connection : undefined
   }
 
+  credentialApplied(name: string, value: string | undefined): boolean { return this.runtime.credentialApplied(name, value) }
+
+  setCredentialPending(value: boolean): void {
+    if (value) this.connectionHealth.reset()
+    if (this._state.credentialPending !== value) this.publish({ credentialPending: value, ...(value && this._state.diagnostics ? { diagnostics: { ...this._state.diagnostics, health: 'unverified' } } : {}) })
+  }
+
   publish(patch: Partial<ChatViewState>): void {
     this._state = { ...this._state, ...patch }
     this.changes.fire(this._state)
   }
 
   observeRuntime(state: RuntimeState): void {
+    if (state.kind === 'starting' || state.kind === 'stopped' || state.kind === 'failed') this.connectionHealth.reset()
     if (state.kind === 'stopped' || state.kind === 'failed') {
       this.cancelRecovery()
       ++this.generation
@@ -308,7 +348,7 @@ export class DshChatController implements vscode.Disposable {
       this.clearLiveControls()
       this.publish({ canReconnect: false, running: false, messages: this.resetToDurableMessages() })
     }
-    if (state.kind === 'starting') this.publish({ phase: 'loading', statusText: state.detail, setup: null })
+    if (state.kind === 'starting') this.publish({ phase: 'loading', statusText: state.detail, setup: null, ...(this._state.diagnostics ? { diagnostics: { ...this._state.diagnostics, health: 'unverified' } } : {}) })
     if (state.kind === 'failed') this.publish({
       phase: 'error',
       statusText: state.message,
@@ -769,7 +809,10 @@ export class DshChatController implements vscode.Disposable {
     const generation = this.sessionLoadGeneration
     if (sessionId === '') return
     await client.selectModel(sessionId, selection)
-    if (this.client === client && generation === this.sessionLoadGeneration) await this.loadModels(sessionId)
+    if (this.client === client && generation === this.sessionLoadGeneration) {
+      this.recoveredModel = false
+      await this.loadModels(sessionId)
+    }
   }
 
   async pluginInventory(): Promise<PluginInventorySnapshot> {
@@ -985,7 +1028,8 @@ export class DshChatController implements vscode.Disposable {
     const result = await (async () => {
       const opening = await client.openSession(sessionId)
       if (!opening.isCurrent()) return undefined
-      const models = await client.models(sessionId)
+      const models = this.runtime.state.kind === 'ready' && this.runtime.state.ownership === 'managed'
+        ? await client.recoverOpenCodeModel(sessionId) : await client.models(sessionId)
       return { opening, models }
     })().catch((error: unknown) => {
       if (this.client === client && loadGeneration === this.sessionLoadGeneration) throw error
@@ -993,6 +1037,7 @@ export class DshChatController implements vscode.Disposable {
     })
     if (result === undefined || this.client !== client || loadGeneration !== this.sessionLoadGeneration || !result.opening.isCurrent()) return
     const { opening, models } = result
+    this.recoveredModel = models.recovered === true
     const { events, hasMore } = opening
     this.projector.reset(events)
     this.historyEntries = events
@@ -1120,7 +1165,7 @@ export class DshChatController implements vscode.Disposable {
     void this.loadPermissions(this.client, sessionId)
   }
 
-  private modelPatch(models: SessionModels): Pick<ChatViewState, 'models' | 'routable'> {
+  private modelPatch(models: SessionModels): Pick<ChatViewState, 'models' | 'routable' | 'diagnostics'> {
     const options: ModelItem[] = []
     for (const group of models.groups) {
       for (const model of group.models) {
@@ -1144,7 +1189,19 @@ export class DshChatController implements vscode.Disposable {
     return {
       models: options,
       routable: models.routable,
+      diagnostics: this.connectionDiagnostics(models.current),
     }
+  }
+
+  private connectionDiagnostics(selection: ModelSelection): ConnectionDiagnostics {
+    const runtime = this.runtime.diagnostics
+    const managed = this.runtimeOwnership === 'managed'
+    return { provider: selection.provider, model: selection.model, version: runtime?.version ?? 'unknown',
+      ownership: runtime?.ownership ?? this.runtimeOwnership ?? 'unknown',
+      credential: !managed ? 'unknown' : selection.provider === 'opencode-go'
+        ? (runtime?.openCodeKey ? 'saved' : 'missing')
+        : selection.provider === 'deepseek-official' && runtime?.deepSeekKey ? 'saved' : 'unknown',
+      health: this.connectionHealth.status(selection), recovered: this.recoveredModel }
   }
 
   private acceptFrame(frame: DshFrame): void {
@@ -1155,6 +1212,7 @@ export class DshChatController implements vscode.Disposable {
     if (frame.channel === 'host' && type === 'host/jobs-status' && sessionId !== '') {
       if (payload.available === true) this.unknownJobSessions.delete(sessionId)
       else this.unknownJobSessions.add(sessionId)
+      if (this._state.credentialPending) this.publish({})
       if (typeof payload.message === 'string') this.output.appendLine(`[jobs] ${payload.message}`)
       return
     }
@@ -1164,6 +1222,7 @@ export class DshChatController implements vscode.Disposable {
         this.runtimeActivity.set(sessionId, { running: type !== 'host/session-removed' && payload.running === true,
           revision: ++this.activityRevision })
       }
+      if (type === 'host/credentials-changed') this.connectionHealth.reset()
       if (type === 'host/settings-changed' || type === 'host/credentials-changed') this.settingsChanges.fire()
       if (this.client !== undefined && this._state.phase === 'ready' && this._state.sessionId !== '') {
         const activeId = this._state.sessionId
@@ -1185,6 +1244,11 @@ export class DshChatController implements vscode.Disposable {
       const event = payload.event
       if (typeof event === 'object' && event !== null) {
         const dshEvent = event as DshEvent
+        const selected = this._state.models.find(model => model.selected)
+        if (selected !== undefined) {
+          this.connectionHealth.accept(sessionId, dshEvent, selected)
+          this.publish({ diagnostics: this.connectionDiagnostics(selected) })
+        }
         if (dshEvent.type === 'user/message') {
           const summary = this.summaries.find(item => item.sessionId === sessionId)
           if (summary !== undefined) {
@@ -1233,6 +1297,7 @@ export class DshChatController implements vscode.Disposable {
     if (frame.channel === 'mux' && type === 'session/jobs') {
       const jobs = jobsSnapshotOf(payload.jobs)
       this.jobsBySession.set(sessionId, jobs)
+      if (this._state.credentialPending) this.publish({})
       if (sessionId === this._state.sessionId) this.publish({ jobs })
       return
     }
@@ -1550,6 +1615,14 @@ export class DshChatController implements vscode.Disposable {
 type DraftImage = PromptImage & { id: string }
 
 class DshSurface implements vscode.Disposable {
+  private suggestionSetting: boolean | undefined
+  private async updateSuggestionSetting(): Promise<void> {
+    if (!this.ready) return
+    const enabled = vscode.workspace.getConfiguration('deepseekHarness', vscode.Uri.file(this.controller.cwd)).get<boolean>('promptSuggestions', true)
+    if (enabled === this.suggestionSetting) return
+    this.suggestionSetting = enabled
+    await this.webview.postMessage({ type: 'suggestion-setting', enabled })
+  }
   private readonly disposables: vscode.Disposable[]
   private readonly draftImagesBySession: Map<string, DraftImage[]>
   private disposed = false
@@ -1579,7 +1652,10 @@ class DshSurface implements vscode.Disposable {
       scroll: webview.asWebviewUri(vscode.Uri.joinPath(renderRoot, 'scroll.js')),
     }, vscode.env.language, workbench?.mode ?? 'sidebar')
     this.disposables = [
-      controller.onDidChangeState(state => { if (!this.workbench || this.workbench.active()) this.queueState(state) }),
+      controller.onDidChangeState(state => { if (!this.workbench || this.workbench.active()) { this.queueState(state); void this.updateSuggestionSetting() } }),
+      vscode.workspace.onDidChangeConfiguration(event => {
+        if (event.affectsConfiguration('deepseekHarness.promptSuggestions')) void this.updateSuggestionSetting()
+      }),
       editorContext.onDidChange(state => { void webview.postMessage({ type: 'ide-context', state }) }),
       webview.onDidReceiveMessage(message => { this.acceptMessage(message) }),
     ]
@@ -1804,6 +1880,7 @@ class DshSurface implements vscode.Disposable {
           return
         case 'ready':
           this.ready = true
+          await this.updateSuggestionSetting()
           await this.resyncState()
           await this.workbench?.initialize(this.webview)
           await this.webview.postMessage({ type: 'ide-context', state: this.editorContext.viewState() })
@@ -1825,8 +1902,14 @@ class DshSurface implements vscode.Disposable {
           await vscode.commands.executeCommand('deepseekHarness.startManagedRuntime')
           return
         case 'output': this.output.show(true); return
+        case 'copy-diagnostics':
+          await vscode.env.clipboard.writeText(JSON.stringify({ ...this.controller.state.diagnostics, pendingRestart: this.controller.state.credentialPending }, null, 2))
+          return
         case 'open-workspace': await this.chooseWorkspace(); return
         case 'configure-api-key':
+          await vscode.commands.executeCommand('deepseekHarness.configureOpenCodeApiKey')
+          return
+        case 'configure-deepseek-api-key':
           await vscode.commands.executeCommand('deepseekHarness.configureApiKey')
           return
         case 'new-session': await this.controller.newSession(); return
@@ -1871,6 +1954,13 @@ class DshSurface implements vscode.Disposable {
           }
           return
         case 'load-history': await this.controller.loadOlderHistory(); return
+        case 'suggest-prompt':
+          if (typeof value.sessionId === 'string' && Number.isSafeInteger(value.requestId)) {
+            let text = ''
+            try { text = await this.controller.suggestNextPrompt(value.sessionId) } catch { /* Suggestions must never interrupt the conversation. */ }
+            await this.webview.postMessage({ type: 'prompt-suggestion', sessionId: value.sessionId, requestId: value.requestId, text })
+          }
+          return
         case 'load-tool-output':
           if (typeof value.messageId === 'string' && typeof value.requestId === 'number') {
             const sessionId = this.controller.state.sessionId
@@ -2294,7 +2384,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const debugRuntime = workspace === undefined || debugSessions === undefined
     ? undefined
     : new DebugRuntimeContribution(context, debugSessions, output)
-  const runtime = new DshRuntime(context, output, debugRuntime)
+  const runtime = new DshRuntime(context, output, new PromptSuggestionsRuntimeContribution(context, new OpenCodeRuntimeContribution(context, debugRuntime)))
   activeRuntime = runtime
 
   if (workspace === undefined) {
@@ -2317,6 +2407,7 @@ export function activate(context: vscode.ExtensionContext): void {
     diffReviews,
     editorContext,
     provider,
+    watchCredentialChanges(controller, context.secrets, output),
     ...(debugSessions === undefined ? [] : [debugSessions]),
   )
   context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('dsh-diff', diffReviews))
@@ -2378,7 +2469,7 @@ export function activate(context: vscode.ExtensionContext): void {
     cacheTimer = setTimeout(() => { void workbench.cacheActive().catch(error => output.appendLine(`[history] ${String(error)}`)) }, 1500)
   }))
   context.subscriptions.push({ dispose() { if (cacheTimer) clearTimeout(cacheTimer) } })
-  void workbench.initialize().then(async target => {
+  const workbenchReady = workbench.initialize().then(async target => {
     const mode = context.workspaceState.get<PresentationMode>('deepseekHarness.presentationMode', 'sidebar')
     if (target) {
       controller.prepareResume(target.sessionId, async () => {
@@ -2395,6 +2486,12 @@ export function activate(context: vscode.ExtensionContext): void {
     } else if (mode === 'client') await changeMode('client')
     else if (vscode.workspace.getConfiguration('deepseekHarness').get<boolean>('autoStart', true)) await controller.start()
   }).catch(error => { void vscode.window.showErrorMessage(String(error)) })
+  registerClientLauncher(context, async () => {
+    await workbenchReady
+    if (switching || shuttingDown) return
+    if (clientPanel) clientPanel.reveal()
+    else await changeMode('client')
+  })
 
   context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.restart', async () => {
     await controller.restart().catch(error => { void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error)) })
@@ -2479,6 +2576,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.clearApiKey', async () => {
     await clearApiKey(controller, context.secrets, output)
+  }))
+
+  context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.configureOpenCodeApiKey', async () => {
+    await configureApiKey(controller, context.secrets, output, 'opencode-go')
+  }))
+
+  context.subscriptions.push(vscode.commands.registerCommand('deepseekHarness.clearOpenCodeApiKey', async () => {
+    await clearApiKey(controller, context.secrets, output, 'opencode-go')
   }))
 
   const welcomeKey = 'deepseekHarness.welcome.openChat.v1'

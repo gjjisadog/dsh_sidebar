@@ -19,6 +19,7 @@ export class RuntimeOutput {
     private readonly log: (line: string) => void,
     private readonly accept: (line: string) => void,
     private readonly maxLineLength = 65_536,
+    private readonly secrets: readonly string[] = [],
   ) {}
 
   consume(chunk: string): void {
@@ -47,7 +48,7 @@ export class RuntimeOutput {
       return
     }
     if (line === '') return
-    this.log(redactDshSecrets(line))
+    this.log(redactDshSecrets(line, this.secrets))
     this.accept(stripVTControlCharacters(line))
   }
 }

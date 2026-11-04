@@ -40,4 +40,15 @@ describe('runtime output and launch-token privacy', () => {
     expect(redactDshSecrets('url?token=abc&x=1\nAuthorization: Bearer abc\nCookie: a=b\nplain-secret', ['plain-secret']))
       .toBe('url?token=[redacted]&x=1\nAuthorization: [redacted]\nCookie: [redacted]\n[redacted]')
   })
+
+  it('redacts a stored provider key split across any output chunk boundary', () => {
+    const key = 'sk-opencode-private'
+    const raw = `Provider rejected ${key}\n`
+    for (let offset = 0; offset <= raw.length; offset++) {
+      const logs: string[] = []
+      const output = new RuntimeOutput(line => logs.push(line), () => {}, undefined, [key])
+      output.consume(raw.slice(0, offset)); output.consume(raw.slice(offset)); output.flush()
+      expect(logs).toEqual(['Provider rejected [redacted]'])
+    }
+  })
 })

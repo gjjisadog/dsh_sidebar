@@ -102,6 +102,7 @@ export interface ModelOption extends ModelSelection {
 }
 
 export interface SessionModels {
+  recovered?: boolean
   current: ModelSelection
   routable: boolean
   groups: Array<{
@@ -129,6 +130,10 @@ interface ModelCatalog {
 
 /** The sidebar uses only authenticated official Remotes. */
 export class DshClient {
+  async suggestNextPrompt(request: { sessionId: string; provider: string; model: string; messages: Array<{ role: string; text: string }> }): Promise<string> {
+    const result = await this.call<{ text: string }>('vscodePromptSuggestions/suggest', { request }, 18000)
+    return typeof result.text === 'string' && result.text.length <= 200 ? result.text : ''
+  }
   private readonly commandTransport = new DshCommandTransport((endpoint, args, timeoutMs) => this.call(endpoint, args, timeoutMs))
   private readonly api: DshRemoteApi
   private readonly feed: DshSessionFeed
@@ -208,6 +213,23 @@ export class DshClient {
   async models(sessionId: string): Promise<SessionModels> {
     await this.catalog.read()
     return this.currentModels(sessionId) as SessionModels
+  }
+
+  /** Repair persisted Go selections after its credential overlay has been removed. */
+  async recoverOpenCodeModel(sessionId: string): Promise<SessionModels> {
+    const models = await this.models(sessionId)
+    if (models.current.provider !== 'opencode-go' || models.routable
+      || models.groups.some(group => group.id === 'opencode-go')) return models
+    const catalog = this.catalog.current!
+    const available = models.groups.flatMap(group => group.id === 'opencode-go' || !catalog.routableProviders.includes(group.id) ? []
+      : group.models.map(model => ({ provider: group.id, model: model.id })))
+    const fallback = available.find(model => model.provider === catalog.default.provider && model.model === catalog.default.model)
+      ?? available[0]
+    if (fallback === undefined) return models
+    const { selected } = await this.selectModel(sessionId, fallback)
+    this.catalog.invalidate()
+    await this.catalog.read()
+    return { ...models, current: selected, routable: true, recovered: true }
   }
   currentModels(sessionId: string): SessionModels | undefined {
     const catalog = this.catalog.current

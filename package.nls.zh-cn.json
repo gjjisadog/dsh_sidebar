@@ -1,0 +1,7 @@
+{
+  "command.configureApiKey": "DeepSeek Harness：配置 DeepSeek API Key",
+  "command.clearApiKey": "DeepSeek Harness：删除保存的 DeepSeek API Key",
+  "command.configureOpenCodeApiKey": "DeepSeek Harness：配置 OpenCode Go API Key",
+  "command.clearOpenCodeApiKey": "DeepSeek Harness：删除保存的 OpenCode Go API Key",
+  "configuration.promptSuggestions": "回复完成后，使用当前模型建议下一句话。按 Tab 填入草稿，按 Esc 忽略。会额外消耗少量 Token。需要托管运行时，启用后请重启运行时。"
+}

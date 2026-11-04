@@ -24,6 +24,7 @@
 
 ## ✨ 功能
 
+- **OpenCode Go 开箱即用。** 点击钥匙按钮填入 OpenCode API Key，自动配置 Go 接口并默认使用 DeepSeek V4.1 Flash。
 - **自主调用 VS Code 原生调试器。** DeepSeek 可以通过当前项目的 `.vscode/launch.json` 启动调试、管理断点、单步执行，并读取调用栈和局部变量。
 - **在 VS Code 中使用官方 DSH。** 会话、流式回复、工具调用、审批和追问都通过官方 DSH runtime 运行。
 - **自动结合编辑器上下文。** 当前文件、选中的代码以及 `@file`、`@folder` 引用会随消息一起发送。
@@ -66,9 +67,27 @@ pnpm run package
 
 1. 在 VS Code 中打开一个受信任的项目文件夹。
 2. 在右侧选择 **DeepSeek**。如果没有显示，可以在 **其他视图** 中找到它。
-3. 点击钥匙按钮配置 `DEEPSEEK_API_KEY`。
+3. 点击钥匙按钮填入 **OpenCode API Key**。此开发版自动使用 OpenCode Go 的 **DeepSeek V4.1 Flash**，无需填写接口地址或模型名称。
 4. 选择 Permission 模式、Model 和 Reasoning Effort，然后开始工作。Shield 菜单用于切换 Permission 和 Plan 模式，输入 `/` 使用 DSH 官方命令，输入 `@` 添加文件或文件夹。
 5. 点击侧边栏标题栏中的插件按钮，搜索、安装、查看或移除社区 runtime 插件。
+
+### OpenCode Go
+
+本次二次开发的功能包含在此目录构建的 VSIX 中，安装 `dsh-vscode.vsix` 后即可使用。需要 DeepSeek Harness **0.2.0-rc.2 或更新版本**，以及有效的 [OpenCode Go / Go Plus 订阅](https://opencode.ai/v2/docs/console/go/)。默认模型 ID 为 `deepseek-v4.1-flash`。
+
+Key 保存在 VS Code 的安全凭据存储中，不写入项目文件或运行时配置文件。首次保存后，空闲的侧栏运行时会自动重启，并为当前对话选择默认模型；更新已有 Key 时保留当前模型。已连接外部 DSH 时，插件改为启动自己管理的实例，外部进程继续运行；如有任务或后台作业正在执行，则先保存 Key，等待任务结束后应用。
+
+删除 Key 后，旧对话和新对话会恢复可选模型，并显示凭据配置引导。其它窗口更新凭据后，空闲的托管运行时会自动应用；有任务时显示待重启状态。
+
+运行时选项在 VS Code 设置中搜索 **DeepSeek Harness**；API Key 通过命令面板配置，运行日志通过 **DeepSeek Harness: Show Runtime Output** 查看。
+
+原有 DeepSeek 配置入口保留在命令面板的 **DeepSeek Harness: Configure DeepSeek API Key** 中。要删除保存的 OpenCode Key，运行 **DeepSeek Harness: Clear Stored OpenCode Go API Key**。
+
+开发验证可运行 `node tests/dsh-runtime-smoke.mjs /path/to/dsh/lib/bin.js --opencode-go`。它启动隔离的 DSH 和本地模拟模型服务，验证默认模型、Key 认证、主对话及自动标题的会话请求头，不调用真实模型或使用用户凭据。还可运行 `node tests/opencode-lifecycle.mjs /path/to/dsh/lib/bin.js`，验证换 Key、删 Key 和重启后的恢复；CI 在 Linux、Windows、macOS 执行这两项测试。
+
+### 下一句话建议
+
+回复完成后，插件使用当前模型，根据最近六条用户消息和助手回复生成一句建议，显示在空输入框中。按 **Tab** 填入草稿，按 **Esc** 忽略；不会自动发送。建议请求不带工具，会额外消耗少量 Token。可在 VS Code 设置中关闭 **DeepSeek Harness: Prompt Suggestions**。开启后使用托管 DSH 运行时，启用后需重启运行时；没有安装建议插件的外部运行时不会显示建议。
 
 ### 自主调试
 
@@ -84,10 +103,9 @@ pnpm run package
 
 [MIT](LICENSE)
 
-
 ### 双模式工作台与工程历史
 
-侧栏的 ⇄ 按钮或 **DeepSeek Harness: Open Chat in Editor** 命令可进入客户端。客户端在主编辑器中显示工程导航和聊天；侧栏与客户端互斥，切换不取消当前任务。关闭客户端标签页会返回侧栏。
+点击 VS Code 左侧活动栏的 DSH 图标即可在主编辑区打开客户端；重复打开会聚焦已有工作台。入口中也可切换到聊天侧栏。侧栏的 ⇄ 按钮或 **DeepSeek Harness: Open Chat in Editor** 命令同样可进入客户端。客户端显示工程导航和聊天；侧栏与客户端互斥，切换不取消当前任务。关闭客户端标签页会返回侧栏。
 
 客户端可以登记本机工程、搜索会话标题并只读预览历史；点击“在所属工程继续”才进入聊天，其他工程在新窗口打开。只读历史使用官方 projections/page 接口，旧版不支持时显示缓存和错误原因，不自动恢复旧 Agent。
 

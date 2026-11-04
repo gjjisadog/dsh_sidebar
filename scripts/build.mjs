@@ -48,6 +48,7 @@ await build({
 })
 
 const require = createRequire(import.meta.url)
+await copyFile('src/prompt-suggestions-plugin.mjs', 'dist/prompt-suggestions-plugin.mjs')
 const katexRoot = dirname(require.resolve('katex/package.json'))
 await mkdir('dist/webview/fonts', { recursive: true })
 await copyFile(join(katexRoot, 'dist/katex.min.css'), 'dist/webview/katex.min.css')

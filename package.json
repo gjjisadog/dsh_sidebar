@@ -3,7 +3,7 @@
   "displayName": "DSH Sidebar",
   "description": "A project-aware VS Code chat sidebar powered by the official DeepSeek Harness runtime.",
   "icon": "media/deepseek.png",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "private": true,
   "publisher": "lixxx1",
   "license": "MIT",
@@ -51,6 +51,8 @@
     "onCommand:deepseekHarness.managePlugins",
     "onCommand:deepseekHarness.configureApiKey",
     "onCommand:deepseekHarness.clearApiKey",
+    "onCommand:deepseekHarness.configureOpenCodeApiKey",
+    "onCommand:deepseekHarness.clearOpenCodeApiKey",
     "onWebviewPanel:deepseekHarness.editor"
   ],
   "capabilities": {
@@ -61,6 +63,13 @@
   },
   "contributes": {
     "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deepseekHarnessClient",
+          "title": "DSH 工作台",
+          "icon": "media/deepseek.svg"
+        }
+      ],
       "secondarySidebar": [
         {
           "id": "deepseekHarness",
@@ -70,6 +79,12 @@
       ]
     },
     "views": {
+      "deepseekHarnessClient": [
+        {
+          "id": "deepseekHarness.clientLauncher",
+          "name": "DSH 工作台"
+        }
+      ],
       "deepseekHarness": [
         {
           "id": "deepseekHarness.chat",
@@ -133,12 +148,21 @@
       },
       {
         "command": "deepseekHarness.configureApiKey",
-        "title": "DeepSeek Harness: Configure API Key",
+        "title": "%command.configureApiKey%",
         "icon": "$(key)"
       },
       {
         "command": "deepseekHarness.clearApiKey",
-        "title": "DeepSeek Harness: Clear Stored API Key"
+        "title": "%command.clearApiKey%"
+      },
+      {
+        "command": "deepseekHarness.configureOpenCodeApiKey",
+        "title": "%command.configureOpenCodeApiKey%",
+        "icon": "$(key)"
+      },
+      {
+        "command": "deepseekHarness.clearOpenCodeApiKey",
+        "title": "%command.clearOpenCodeApiKey%"
       }
     ],
     "menus": {
@@ -177,7 +201,7 @@
           "group": "navigation@3"
         },
         {
-          "command": "deepseekHarness.configureApiKey",
+          "command": "deepseekHarness.configureOpenCodeApiKey",
           "when": "view == deepseekHarness.chat",
           "group": "navigation@4"
         }
@@ -186,6 +210,12 @@
     "configuration": {
       "title": "DeepSeek Harness",
       "properties": {
+        "deepseekHarness.promptSuggestions": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "markdownDescription": "%configuration.promptSuggestions%"
+        },
         "deepseekHarness.executable": {
           "type": "string",
           "scope": "resource",

@@ -45,6 +45,7 @@ function testClient() {
     listSessions: vi.fn(async () => ({ items: ['a', 'b'].map(sessionId => ({ sessionId, cwd: '/workspace', updatedAt: 1,
       blank: true, running: false, agentPreset: 'standard', projections: { values: { ...projections } } })) })),
     openSession: vi.fn(async () => ({ events: [], hasMore: false, projections: { ...projections }, isCurrent: () => true, activate() {} })),
+    recoverOpenCodeModel: vi.fn(async () => models()),
     models: vi.fn(async () => models()), currentModels: vi.fn(() => models()),
     listCommands: vi.fn(async () => [{ name: 'plan', description: 'Plan' }]),
     listSkills: vi.fn(async (): Promise<SkillDescriptor[]> => []),
@@ -1005,5 +1006,18 @@ describe('sidebar discovery notifications', () => {
     await h.controller.start()
     pending.resolve({ entries: [] })
     await rejected
+  })
+})
+
+
+describe('Go removal recovery diagnostics', () => {
+  it('repairs old managed conversations and exposes configuration guidance', async () => {
+    const h = await harness()
+    h.runtime.state = { kind: 'ready', ownership: 'managed' } as any
+    h.client.recoverOpenCodeModel.mockResolvedValue({ ...models(), recovered: true })
+    await h.controller.selectSession('b')
+    expect(h.client.recoverOpenCodeModel).toHaveBeenCalledWith('b')
+    expect(h.controller.state.routable).toBe(true)
+    expect(h.controller.state.diagnostics).toMatchObject({ recovered: true, health: 'unverified' })
   })
 })

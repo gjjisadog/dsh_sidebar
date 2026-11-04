@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -35,6 +35,14 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run test
       - run: pnpm run build
+      - name: Install the supported DSH runtime
+        run: npm install --global @deepseek-ai/dsh@0.2.0-rc.2
+      - name: Check OpenCode runtime and persistence without real credentials
+        shell: bash
+        run: |
+          DSH_TEST_CLI="$(npm root -g)/@deepseek-ai/dsh/lib/bin.js"
+          node tests/dsh-runtime-smoke.mjs "$DSH_TEST_CLI" --opencode-go
+          node tests/opencode-lifecycle.mjs "$DSH_TEST_CLI"
       - name: Check chat scrolling in Chromium
         if: runner.os == 'Linux'
         run: pnpm run test:scroll-browser

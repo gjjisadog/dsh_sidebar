@@ -66,9 +66,11 @@ VS Code 1.100 以降と Node.js `^22.19` または `>=24` が必要です。
 
 1. 信頼済みのプロジェクトフォルダを VS Code で開きます。
 2. 右サイドバーで **DeepSeek** を選択します。表示されていない場合は **その他のビュー** から探してください。
-3. 鍵アイコンのボタンから `DEEPSEEK_API_KEY` を設定します。
+3. 鍵アイコンのボタンから **OpenCode API Key** を入力します。この開発ビルドでは OpenCode Go の **DeepSeek V4.1 Flash** が自動設定されます。
 4. Permission モード、Model、Reasoning Effort を選んで作業を開始します。Permission モードと Plan モードの切り替えは Shield メニュー、DSH 公式のコマンドは `/`、ファイルやフォルダの追加は `@` から行えます。
 5. サイドバーのタイトルにあるプラグインボタンから、コミュニティ製ランタイムプラグインの検索・インストール・確認・削除ができます。
+
+OpenCode Go には DeepSeek Harness **0.2.0-rc.2 以降**と有効な [Go / Go Plus サブスクリプション](https://opencode.ai/v2/docs/console/go/)が必要です。Key は VS Code の安全な認証情報ストレージに保存されます。従来の DeepSeek Key 設定はコマンドパレットの **DeepSeek Harness: Configure DeepSeek API Key** から利用できます。
 
 ### 自律デバッグ
 

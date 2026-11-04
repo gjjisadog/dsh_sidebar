@@ -1,0 +1,7 @@
+{
+  "command.configureApiKey": "DeepSeek Harness: Configure DeepSeek API Key",
+  "command.clearApiKey": "DeepSeek Harness: Clear Stored DeepSeek API Key",
+  "command.configureOpenCodeApiKey": "DeepSeek Harness: Configure OpenCode Go API Key",
+  "command.clearOpenCodeApiKey": "DeepSeek Harness: Clear Stored OpenCode Go API Key",
+  "configuration.promptSuggestions": "Suggest your next message using the selected model after a reply finishes. Press Tab to fill the draft, Escape to dismiss. Uses a small additional model request. Requires a managed runtime; restart the runtime after enabling."
+}

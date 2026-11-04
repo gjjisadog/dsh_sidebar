@@ -93,6 +93,14 @@ describe('diffConversationMessages', () => {
     })
   })
 
+  it('retains the command description for compact tool summaries', () => {
+    const tool = message('tool:shell', 'bash', {
+      role: 'tool', callView: { card: 'terminal', title: 'cd /workspace && ls', description: 'List project files' }, rawResult: 'files',
+    })
+    expect(messageForWebview(tool).callView).toEqual({ card: 'terminal', title: 'cd /workspace && ls', description: 'List project files' })
+    expect(messageForWebview(tool).rawResult).toBeUndefined()
+  })
+
   it('defers tool bodies inside resets and upserts', () => {
     const tool = message('tool:large', 'Tool', { role: 'tool', rawResult: 'large output' })
     const patch = messagesPatchForWebview({ reset: [tool], upserts: [tool] })
